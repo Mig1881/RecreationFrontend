@@ -1,21 +1,18 @@
 // src/App.tsx
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
+
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
-import RequireAuth from './auth/RequireAuth';
+import HomePage from './pages/HomePage';
 
-// Componente temporal para simular el Dashboard protegido
-const DashboardPlaceholder = () => (
-  <div className="flex flex-col items-center justify-center min-h-screen bg-stone-50">
-    <h1 className="text-3xl font-bold text-stone-800 font-serif mb-4">Dashboard Principal</h1>
-    <p className="text-stone-600">¡Bienvenido a la Base! Estás autenticado.</p>
-  </div>
-);
+import RequireAuth from './auth/RequireAuth';
+import DashboardLayout from './components/layout/DashboardLayout';
+import MembersPage from './pages/admin/MembersPage';
+import RequireRole from './auth/RequireRole';
 
 export default function App() {
   return (
-    // Envolvuelvo toda la aplicación con el proveedor de autenticación
     <AuthProvider>
       <BrowserRouter>
         <Routes>
@@ -23,15 +20,28 @@ export default function App() {
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
           
-          {/* Rutas Privadas (Protegidas por nuestro Guardián) */}
+          {/* Rutas Privadas (Protegidas por Layout y RequireAuth) */}
           <Route 
             path="/" 
             element={
               <RequireAuth>
-                <DashboardPlaceholder />
+                <DashboardLayout />
               </RequireAuth>
             } 
-          />
+          >
+            {/* Todas las rutas anidadas aquí aparecerán dentro del <Outlet /> del DashboardLayout */}
+            <Route index element={<HomePage />} />
+            <Route path="members" 
+              element={
+                <RequireRole allowedRoles={['ADMIN', 'PRESIDENT', 'ROLE_ADMIN', 'ROLE_PRESIDENT']}>
+                    <MembersPage />
+                </RequireRole>
+              } 
+            />
+            {/* Aquí iremos añadiendo las siguientes: */}
+            {/* <Route path="events" element={<EventsPage />} /> */}
+            {/* <Route path="associations" element={<AssociationsPage />} /> */}
+          </Route>
           
           {/* Fallback para rutas no encontradas */}
           <Route path="*" element={<Navigate to="/" replace />} />
