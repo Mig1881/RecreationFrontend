@@ -1,38 +1,42 @@
+// src/App.tsx
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { useAuth } from './context/AuthContext';
+import { AuthProvider } from './context/AuthContext';
+import LoginPage from './pages/LoginPage';
+import RegisterPage from './pages/RegisterPage';
+import RequireAuth from './auth/RequireAuth';
 
-// Componente temporal para simular páginas
-const Placeholder = ({ title }: { title: string }) => (
-  <div className="flex items-center justify-center min-h-screen bg-slate-50">
-    <h1 className="text-3xl font-bold text-slate-800 font-serif">{title}</h1>
+// Componente temporal para simular el Dashboard protegido
+const DashboardPlaceholder = () => (
+  <div className="flex flex-col items-center justify-center min-h-screen bg-stone-50">
+    <h1 className="text-3xl font-bold text-stone-800 font-serif mb-4">Dashboard Principal</h1>
+    <p className="text-stone-600">¡Bienvenido a la Base! Estás autenticado.</p>
   </div>
 );
 
 export default function App() {
-  const { state } = useAuth();
-
   return (
-    <BrowserRouter>
-      <Routes>
-        {/* Rutas Públicas */}
-        <Route path="/login" element={<Placeholder title="Página de Login (Pública)" />} />
-        <Route path="/register" element={<Placeholder title="Página de Registro (Pública)" />} />
-
-        {/* Rutas Privadas */}
-        <Route 
-          path="/" 
-          element={
-            state.isAuthenticated ? (
-              <Placeholder title="Dashboard de Recreadores (Privada)" />
-            ) : (
-              <Navigate to="/login" replace />
-            )
-          } 
-        />
-        
-        {/* Fallback para rutas no encontradas */}
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
-    </BrowserRouter>
+    // Envolvuelvo toda la aplicación con el proveedor de autenticación
+    <AuthProvider>
+      <BrowserRouter>
+        <Routes>
+          {/* Rutas Públicas */}
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/register" element={<RegisterPage />} />
+          
+          {/* Rutas Privadas (Protegidas por nuestro Guardián) */}
+          <Route 
+            path="/" 
+            element={
+              <RequireAuth>
+                <DashboardPlaceholder />
+              </RequireAuth>
+            } 
+          />
+          
+          {/* Fallback para rutas no encontradas */}
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </BrowserRouter>
+    </AuthProvider>
   );
 }
