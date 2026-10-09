@@ -21,4 +21,10 @@ export interface Member {
 export const membersService = {
   // Obtiene la lista completa de recreadores
   getAll: () => apiClient<Member[]>('/members'),
+  // Obtiene el expediente completo de un único recreador por su ID
+  getById: (id: number) => apiClient<Member>(`/members/${id}`),
+
+  // Modifica los detalles de un recreador existente (guardando la URL de la foto)
+  update: (id: number, memberData: Member) => 
+    apiClient<Member>(`/members/${id}`, { method: 'PUT', data: memberData }),
 };
