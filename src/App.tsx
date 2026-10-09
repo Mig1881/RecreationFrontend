@@ -9,7 +9,9 @@ import HomePage from './pages/HomePage';
 import RequireAuth from './auth/RequireAuth';
 import DashboardLayout from './components/layout/DashboardLayout';
 import MembersPage from './pages/admin/MembersPage';
+import EventsPage from './pages/EventsPage';
 import RequireRole from './auth/RequireRole';
+
 
 export default function App() {
   return (
@@ -31,6 +33,7 @@ export default function App() {
           >
             {/* Todas las rutas anidadas aquí aparecerán dentro del <Outlet /> del DashboardLayout */}
             <Route index element={<HomePage />} />
+            <Route path="events" element={<EventsPage />} />
             <Route path="members" 
               element={
                 <RequireRole allowedRoles={['ADMIN', 'PRESIDENT', 'ROLE_ADMIN', 'ROLE_PRESIDENT']}>
