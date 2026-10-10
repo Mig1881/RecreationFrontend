@@ -11,8 +11,12 @@ import DashboardLayout from './components/layout/DashboardLayout';
 import MembersPage from './pages/admin/MembersPage';
 import EventsPage from './pages/EventsPage';
 import ProfilePage from './pages/ProfilePage';
+import AssociationsPage from './pages/AssociationsPage';
+import WeaponsExportPage from './pages/admin/WeaponsExportPage';
+import EventManagePage from './pages/admin/EventManagePage';
+import AdminAssociationsPage from './pages/admin/AdminAssociationsPage';
+import AdminEventsPage from './pages/admin/AdminEventsPage';
 import RequireRole from './auth/RequireRole';
-
 
 export default function App() {
   return (
@@ -32,10 +36,11 @@ export default function App() {
               </RequireAuth>
             } 
           >
-            {/* Todas las rutas anidadas aquí aparecerán dentro del <Outlet /> del DashboardLayout */}
             <Route index element={<HomePage />} />
             <Route path="events" element={<EventsPage />} />
             <Route path="profile" element={<ProfilePage />} />
+            <Route path="associations" element={<AssociationsPage />} />
+            
             <Route path="members" 
               element={
                 <RequireRole allowedRoles={['ADMIN', 'PRESIDENT', 'ROLE_ADMIN', 'ROLE_PRESIDENT']}>
@@ -43,9 +48,44 @@ export default function App() {
                 </RequireRole>
               } 
             />
-            {/* Aquí iremos añadiendo las siguientes: */}
-            {/* <Route path="events" element={<EventsPage />} /> */}
-            {/* <Route path="associations" element={<AssociationsPage />} /> */}
+            
+            <Route 
+              path="admin/export" 
+              element={
+                <RequireRole allowedRoles={['ADMIN', 'PRESIDENT', 'ROLE_ADMIN', 'ROLE_PRESIDENT']}>
+                  <WeaponsExportPage />
+                </RequireRole>
+              } 
+            />
+
+            {/* ---> CRUD DE ASOCIACIONES <--- */}
+            <Route 
+              path="admin/associations" 
+              element={
+                <RequireRole allowedRoles={['ADMIN', 'PRESIDENT', 'ROLE_ADMIN', 'ROLE_PRESIDENT']}>
+                  <AdminAssociationsPage />
+                </RequireRole>
+              } 
+            />
+
+            {/* ---> CRUD DE CAMPAÑAS Y EVENTOS <--- */}
+            <Route 
+              path="admin/events/crud" 
+              element={
+                <RequireRole allowedRoles={['ADMIN', 'PRESIDENT', 'ROLE_ADMIN', 'ROLE_PRESIDENT']}>
+                  <AdminEventsPage />
+                </RequireRole>
+              } 
+            />
+            
+            <Route 
+              path="events/:eventId/manage" 
+              element={
+                <RequireRole allowedRoles={['ADMIN', 'PRESIDENT', 'ROLE_ADMIN', 'ROLE_PRESIDENT']}>
+                  <EventManagePage />
+                </RequireRole>
+              } 
+            />
           </Route>
           
           {/* Fallback para rutas no encontradas */}
