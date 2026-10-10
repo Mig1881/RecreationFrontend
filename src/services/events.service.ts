@@ -1,22 +1,24 @@
 // src/services/events.service.ts
 import { apiClient } from '../api/apiClient';
 
-// Definición básica de Asociación para relacionarla con el evento
 export interface AssociationRef {
-  id: number;
   name: string;
 }
 
 // Interfaz Base común para todos los eventos
 export interface BaseEvent {
-  id: number;
+  id?: number;
   eventType: 'PUBLIC' | 'PRIVATE';
   eventCode: string;
-  organizingAssociation: AssociationRef;
+  // Opcional para lectura (GET)
+  organizingAssociation?: AssociationRef; 
+  // ID para escritura (POST/PUT)
+  organizingAssociationId?: number; 
   city: string;
   country: string;
   startDate: string;
   endDate: string;
+  cost?: number;
   published: boolean;
 }
 
@@ -31,7 +33,8 @@ export interface PublicEvent extends BaseEvent {
 export interface PrivateEvent extends BaseEvent {
   eventType: 'PRIVATE';
   sponsor: string;
-  openToPublic: boolean;
+  openToPublic?: boolean;
+  initialBudget?: number;
 }
 
 // Tipo de Unión que agrupa ambos
@@ -40,4 +43,12 @@ export type HistoricEvent = PublicEvent | PrivateEvent;
 export const eventsService = {
   // Obtiene todos los eventos
   getAll: () => apiClient<HistoricEvent[]>('/events'),
+  // Método para traer un evento por su ID
+  getById: (id: number) => apiClient<HistoricEvent>(`/events/${id}`),
+  
+  // CRUD completo para eventos, usando HistoricEvent como base
+  // Usamos un Omit porque al crear no enviamos el ID y usamos HistoricEvent como base
+  create: (data: any) => apiClient<HistoricEvent>('/events', { method: 'POST', data }),
+  update: (id: number, data: any) => apiClient<HistoricEvent>(`/events/${id}`, { method: 'PUT', data }),
+  delete: (id: number) => apiClient<void>(`/events/${id}`, { method: 'DELETE' }),
 };

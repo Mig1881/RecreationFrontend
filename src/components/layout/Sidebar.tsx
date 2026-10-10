@@ -17,7 +17,7 @@ export default function Sidebar() {
     navigate('/login', { replace: true });
   };
 
-  // Clases CSS reutilizables para los enlaces
+  // Clases CSS reutilizables para los enlaces (Ley de Similitud)
   const navLinkClass = ({ isActive }: { isActive: boolean }) =>
     `block px-6 py-3 text-lg font-medium transition-colors ${
       isActive
@@ -46,13 +46,19 @@ export default function Sidebar() {
           Inicio
         </NavLink>
         
-        <NavLink to="/events" className={navLinkClass}>
-          Campañas y Eventos
+        {/* Enlace complementario a la página de perfil */}
+        <NavLink to="/profile" className={navLinkClass}>
+          Mi Perfil
         </NavLink>
 
         <NavLink to="/associations" className={navLinkClass}>
           Asociaciones
         </NavLink>
+
+        <NavLink to="/events" className={navLinkClass}>
+          Campañas y Eventos
+        </NavLink>
+
 
         {/* Zona exclusiva para Oficiales (Admin/President) */}
         {hasElevatedPrivileges && (
@@ -63,6 +69,12 @@ export default function Sidebar() {
             <NavLink to="/members" className={navLinkClass}>
               Recreadores
             </NavLink>
+            <NavLink to="/admin/associations" className={navLinkClass}>
+              Gestión de Asociaciones
+            </NavLink>
+            <NavLink to="/admin/events/crud" className={navLinkClass}>
+              Gestión de Campañas
+            </NavLink>
             <NavLink to="/admin/export" className={navLinkClass}>
               Intervención de Armas
             </NavLink>
@@ -70,7 +82,7 @@ export default function Sidebar() {
         )}
       </nav>
 
-      {/* Botón de Salida (Ley de Proximidad: separado abajo del todo) */}
+      {/* Botón de Salida */}
       <div className="p-4 border-t border-stone-200">
         <button
           onClick={handleLogout}
