@@ -1,5 +1,6 @@
 // src/context/AuthContext.tsx
 import React, { createContext, useReducer, useEffect, useContext, type ReactNode } from 'react';
+import { membershipsService, type MembershipOutDto } from '../services/memberships.service';
 
 // 1. Definición de Tipos estrictos mapeados del backend
 export interface User {
@@ -12,17 +13,23 @@ export interface AuthState {
   token: string | null;
   user: User | null;
   isAuthenticated: boolean;
+  //Almacenamos las membresías del usuario
+  myMemberships: MembershipOutDto[]; 
 }
 
 export type AuthAction =
   | { type: 'LOGIN'; payload: { token: string; user: User } }
-  | { type: 'LOGOUT' };
+  | { type: 'LOGOUT' }
+  //Acción para guardar las membresías cuando lleguen de la API
+  | { type: 'SET_MEMBERSHIPS'; payload: MembershipOutDto[] };
 
 // 2. Estado Inicial: Intentamos recuperar la sesión del LocalStorage
 const initialState: AuthState = {
   token: localStorage.getItem('token'),
   user: localStorage.getItem('user') ? JSON.parse(localStorage.getItem('user') as string) : null,
   isAuthenticated: !!localStorage.getItem('token'),
+  // Recuperamos también las membresías si estaban guardadas
+  myMemberships: localStorage.getItem('myMemberships') ? JSON.parse(localStorage.getItem('myMemberships') as string) : [],
 };
 
 // 3. El Reducer: La única forma de mutar el estado de autenticación
@@ -41,6 +48,12 @@ const authReducer = (state: AuthState, action: AuthAction): AuthState => {
         token: null,
         user: null,
         isAuthenticated: false,
+        myMemberships: [], // Limpiamos al salir
+      };
+    case 'SET_MEMBERSHIPS':
+      return {
+        ...state,
+        myMemberships: action.payload,
       };
     default:
       return state;
@@ -59,7 +72,7 @@ export const AuthContext = createContext<AuthContextType | undefined>(undefined)
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [state, dispatch] = useReducer(authReducer, initialState);
 
-  // Efecto A: Sincronizar el estado de React con LocalStorage para persistencia
+  // Efecto A: Sincronizar el estado básico con LocalStorage para persistencia
   useEffect(() => {
     if (state.token && state.user) {
       localStorage.setItem('token', state.token);
@@ -70,7 +83,30 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [state.token, state.user]);
 
-  // Efecto B: Escuchar expulsiones forzosas desde la red (apiClient)
+  // Efecto B: Sincronizar mis membresías con LocalStorage
+  useEffect(() => {
+    if (state.myMemberships.length > 0) {
+      localStorage.setItem('myMemberships', JSON.stringify(state.myMemberships));
+    } else {
+      localStorage.removeItem('myMemberships');
+    }
+  }, [state.myMemberships]);
+
+  // Efecto C: INTERCEPCIÓN SILENCIOSA
+  // Si estamos autenticados pero no tenemos membresías en memoria, las pedimos a la API
+  useEffect(() => {
+    if (state.isAuthenticated && state.myMemberships.length === 0) {
+      membershipsService.getMyMemberships()
+        .then((data) => {
+          dispatch({ type: 'SET_MEMBERSHIPS', payload: data });
+        })
+        .catch((error) => {
+          console.error('Error estratégico: No se pudieron cargar los regimientos del oficial.', error);
+        });
+    }
+  }, [state.isAuthenticated]);
+
+  // Efecto D: Escuchar expulsiones forzosas desde la red (apiClient)
   useEffect(() => {
     const handleUnauthorized = () => {
       dispatch({ type: 'LOGOUT' });

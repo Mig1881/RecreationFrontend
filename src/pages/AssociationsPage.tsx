@@ -55,9 +55,20 @@ export default function AssociationsPage() {
               className="bg-white rounded-xl shadow-sm border border-stone-200 overflow-hidden flex flex-col hover:shadow-md transition-shadow"
             >
               <div className="bg-stone-100 p-5 border-b border-stone-200 flex items-start gap-4">
-                <div className="h-14 w-14 bg-amber-800 rounded-lg shadow-sm flex items-center justify-center text-white flex-shrink-0">
-                  <Shield className="h-8 w-8" />
+                
+                {/* LÓGICA DE RENDERIZADO DEL EMBLEMA */}
+                <div className="h-16 w-16 bg-white border border-stone-200 rounded-lg shadow-sm flex items-center justify-center text-amber-800 flex-shrink-0 overflow-hidden relative">
+                  {assoc.logoBase64 ? (
+                    <img 
+                      src={assoc.logoBase64} 
+                      alt={`Escudo de ${assoc.name}`} 
+                      className="h-full w-full object-cover" 
+                    />
+                  ) : (
+                    <Shield className="h-8 w-8 opacity-50" />
+                  )}
                 </div>
+
                 <div>
                   <h3 className="text-xl font-bold text-stone-900 leading-tight">
                     {assoc.name}

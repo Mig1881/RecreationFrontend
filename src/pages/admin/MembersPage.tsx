@@ -2,16 +2,21 @@
 import { useState, useEffect } from 'react';
 import { membersService, type Member } from '../../services/members.service';
 import { Search, ChevronLeft, ChevronRight, UserCog } from 'lucide-react';
+import ProfileModal from '../../components/layout/ProfileModal';
 
 export default function MembersPage() {
   const [members, setMembers] = useState<Member[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [apiError, setApiError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
-
+  
   // Paginación
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 8;
+  
+  // Estados para controlar el Modal localmente
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [selectedMember, setSelectedMember] = useState<Member | null>(null);
 
   useEffect(() => {
     const fetchMembers = async () => {
@@ -125,7 +130,12 @@ export default function MembersPage() {
                       )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                      <button className="text-amber-800 hover:text-amber-900 transition-colors flex items-center justify-end w-full">
+                      <button 
+                        onClick={() => {
+                          setSelectedMember(member);
+                          setIsModalOpen(true);
+                        }}
+                        className="text-amber-800 hover:text-amber-900 transition-colors flex items-center justify-end w-full">
                         <UserCog className="h-5 w-5 mr-1" />
                         Perfil
                       </button>
@@ -177,6 +187,13 @@ export default function MembersPage() {
           </div>
         )}
       </div>
+
+      {/* Modal inyectado localmente */}
+      <ProfileModal 
+        isOpen={isModalOpen} 
+        member={selectedMember} 
+        onClose={() => setIsModalOpen(false)} 
+      />
     </div>
   );
 }
