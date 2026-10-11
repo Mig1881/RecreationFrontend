@@ -14,8 +14,8 @@ import ProfilePage from './pages/ProfilePage';
 import AssociationsPage from './pages/AssociationsPage';
 import WeaponsExportPage from './pages/admin/WeaponsExportPage';
 import EventManagePage from './pages/admin/EventManagePage';
-import AdminAssociationsPage from './pages/admin/AdminAssociationsPage';
-import AdminEventsPage from './pages/admin/AdminEventsPage';
+import AdminAssociationsPage from './pages/admin/AdminAssociationsPage'; // NUEVO
+import AdminEventsPage from './pages/admin/AdminEventsPage'; // NUEVO
 import RequireRole from './auth/RequireRole';
 
 export default function App() {

@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { associationsService, type Association } from '../../services/associations.service';
-import { Shield, Edit, Trash2, Plus, X } from 'lucide-react';
+import { Shield, Edit, Trash2, Plus, X, UploadCloud } from 'lucide-react';
 
 export default function AdminAssociationsPage() {
   const [associations, setAssociations] = useState<Association[]>([]);
@@ -11,7 +11,11 @@ export default function AdminAssociationsPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
 
-  const { register, handleSubmit, reset } = useForm<Association>();
+  // Añadimos setValue y watch para controlar la imagen programáticamente
+  const { register, handleSubmit, reset, setValue, watch } = useForm<Association>();
+  
+  // Observamos el valor actual del logo para poder mostrar una vista previa
+  const currentLogo = watch('logoBase64');
 
   const loadAssociations = async () => {
     try {
@@ -33,7 +37,7 @@ export default function AdminAssociationsPage() {
       reset(association);
     } else {
       setEditingId(null);
-      reset({ taxId: '', name: '', foundationYear: new Date().getFullYear(), allegiance: '', historicalAttire: '' });
+      reset({ taxId: '', name: '', foundationYear: new Date().getFullYear(), allegiance: '', historicalAttire: '', logoBase64: '' });
     }
     setIsModalOpen(true);
   };
@@ -41,6 +45,25 @@ export default function AdminAssociationsPage() {
   const closeModal = () => {
     setIsModalOpen(false);
     setEditingId(null);
+  };
+
+  // Motor de conversión de Imagen a Base64
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      // Validar tamaño (ej. max 2MB) para no saturar el JSON
+      if (file.size > 2 * 1024 * 1024) {
+        alert("El escudo es demasiado pesado. El tamaño máximo es 2MB.");
+        return;
+      }
+      
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        // Inyectamos el resultado (la cadena de texto Base64) en el formulario
+        setValue('logoBase64', reader.result as string, { shouldDirty: true });
+      };
+      reader.readAsDataURL(file); // Dispara la conversión
+    }
   };
 
   const onSubmit = async (data: Association) => {
@@ -102,7 +125,15 @@ export default function AdminAssociationsPage() {
             {isLoading ? <tr><td colSpan={4} className="p-6 text-center text-stone-500">Cargando...</td></tr> : 
               associations.map((assoc, index) => (
               <tr key={assoc.id} className={index % 2 === 0 ? 'bg-white' : 'bg-stone-50'}>
-                <td className="px-6 py-4 flex items-center gap-3"><Shield className="h-5 w-5 text-amber-800" /> <span className="font-bold">{assoc.name}</span></td>
+                <td className="px-6 py-4 flex items-center gap-3">
+                  {/* Pequeña previsualización en la tabla si existe el logo */}
+                  {assoc.logoBase64 ? (
+                    <img src={assoc.logoBase64} alt="Escudo" className="h-8 w-8 object-cover rounded-md border border-stone-200" />
+                  ) : (
+                    <Shield className="h-6 w-6 text-stone-400" /> 
+                  )}
+                  <span className="font-bold">{assoc.name}</span>
+                </td>
                 <td className="px-6 py-4 text-sm">{assoc.taxId}</td>
                 <td className="px-6 py-4 text-sm">{assoc.allegiance}</td>
                 <td className="px-6 py-4 text-right space-x-3">
@@ -117,22 +148,50 @@ export default function AdminAssociationsPage() {
 
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-stone-900/60 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl overflow-hidden">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl overflow-hidden animate-in zoom-in-95 duration-200">
             <div className="bg-amber-900 px-6 py-4 flex justify-between items-center text-white">
               <h3 className="text-xl font-bold">{editingId ? 'Modificar Expediente' : 'Alta de Nuevo Regimiento'}</h3>
               <button onClick={closeModal} className="text-amber-200 hover:text-white"><X className="h-6 w-6" /></button>
             </div>
-            <form onSubmit={handleSubmit(onSubmit)} className="p-6 space-y-4">
+            
+            <form onSubmit={handleSubmit(onSubmit)} className="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
+              
+              {/* Zona de subida de escudo (Ley de Semejanza: agrupamos lo visual) */}
+              <div className="flex flex-col sm:flex-row gap-6 items-center p-4 bg-stone-50 border border-stone-200 rounded-lg mb-4">
+                <div className="h-24 w-24 bg-white border-2 border-dashed border-stone-300 rounded-lg flex items-center justify-center overflow-hidden flex-shrink-0 relative group">
+                  {currentLogo ? (
+                    <>
+                      <img src={currentLogo} alt="Preview" className="h-full w-full object-cover" />
+                      <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button type="button" onClick={() => setValue('logoBase64', '')} className="text-white text-xs font-bold hover:text-red-400">Quitar</button>
+                      </div>
+                    </>
+                  ) : (
+                    <Shield className="h-10 w-10 text-stone-300" />
+                  )}
+                </div>
+                <div className="flex-1">
+                  <label className="block text-sm font-bold text-stone-700 mb-2">Escudo / Emblema (Opcional)</label>
+                  <label className="flex items-center gap-2 px-4 py-2 bg-white border border-stone-300 rounded-md shadow-sm cursor-pointer hover:bg-stone-50 text-sm font-medium text-stone-700 w-fit transition-colors">
+                    <UploadCloud className="h-4 w-4" />
+                    Seleccionar Archivo
+                    <input type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
+                  </label>
+                  <p className="text-xs text-stone-500 mt-2">Formatos aceptados: JPG, PNG. Tamaño máximo 2MB.</p>
+                </div>
+              </div>
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="md:col-span-2"><label className="block text-sm font-bold text-stone-700 mb-1">Nombre</label><input type="text" className="w-full px-3 py-2 border rounded" {...register('name', { required: true })} /></div>
+                <div className="md:col-span-2"><label className="block text-sm font-bold text-stone-700 mb-1">Nombre Oficial</label><input type="text" className="w-full px-3 py-2 border rounded" {...register('name', { required: true })} /></div>
                 <div><label className="block text-sm font-bold text-stone-700 mb-1">CIF</label><input type="text" className="w-full px-3 py-2 border rounded" {...register('taxId', { required: true })} /></div>
                 <div><label className="block text-sm font-bold text-stone-700 mb-1">Año Fundación</label><input type="number" className="w-full px-3 py-2 border rounded" {...register('foundationYear', { valueAsNumber: true })} /></div>
-                <div><label className="block text-sm font-bold text-stone-700 mb-1">Bando</label><input type="text" className="w-full px-3 py-2 border rounded" {...register('allegiance')} /></div>
-                <div className="md:col-span-2"><label className="block text-sm font-bold text-stone-700 mb-1">Descripción Uniforme</label><textarea className="w-full px-3 py-2 border rounded" {...register('historicalAttire')} /></div>
+                <div><label className="block text-sm font-bold text-stone-700 mb-1">Bando Histórico</label><input type="text" placeholder="Ej: Ejército Francés" className="w-full px-3 py-2 border rounded" {...register('allegiance')} /></div>
+                <div className="md:col-span-2"><label className="block text-sm font-bold text-stone-700 mb-1">Descripción Uniforme</label><textarea rows={3} className="w-full px-3 py-2 border rounded" {...register('historicalAttire')} /></div>
               </div>
+
               <div className="mt-6 border-t pt-4 flex justify-end gap-3">
                 <button type="button" onClick={closeModal} className="px-4 py-2 font-bold text-stone-600">Cancelar</button>
-                <button type="submit" className="px-6 py-2 bg-amber-800 text-white font-bold rounded">Guardar</button>
+                <button type="submit" className="px-6 py-2 bg-amber-800 text-white font-bold rounded shadow hover:bg-amber-900">Guardar Expediente</button>
               </div>
             </form>
           </div>

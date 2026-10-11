@@ -6,20 +6,20 @@ export interface AssociationRef {
 }
 
 // Interfaz Base común para todos los eventos
+// Interfaz Base común para todos los eventos
 export interface BaseEvent {
   id?: number;
   eventType: 'PUBLIC' | 'PRIVATE';
   eventCode: string;
-  // Opcional para lectura (GET)
-  organizingAssociation?: AssociationRef; 
-  // ID para escritura (POST/PUT)
   organizingAssociationId?: number; 
+  organizingAssociationName?: string;  
   city: string;
   country: string;
   startDate: string;
   endDate: string;
   cost?: number;
   published: boolean;
+  attendingAssociationIds?: number[]; 
 }
 
 // Extensión para Eventos Públicos
@@ -46,7 +46,7 @@ export const eventsService = {
   // Método para traer un evento por su ID
   getById: (id: number) => apiClient<HistoricEvent>(`/events/${id}`),
   
-  // CRUD completo para eventos, usando HistoricEvent como base
+  // MÉTODOS CRUD NUEVOS
   // Usamos un Omit porque al crear no enviamos el ID y usamos HistoricEvent como base
   create: (data: any) => apiClient<HistoricEvent>('/events', { method: 'POST', data }),
   update: (id: number, data: any) => apiClient<HistoricEvent>(`/events/${id}`, { method: 'PUT', data }),
