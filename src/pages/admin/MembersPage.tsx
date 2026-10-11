@@ -1,75 +1,207 @@
 // src/pages/admin/MembersPage.tsx
 import { useState, useEffect } from 'react';
+import RecruitModal from '../../components/members/RecruitModal';
 import { membersService, type Member } from '../../services/members.service';
-import { Search, ChevronLeft, ChevronRight, UserCog } from 'lucide-react';
+import { membershipsService, type MembershipOutDto } from '../../services/memberships.service';
+import { useAuth } from '../../context/AuthContext';
+import { Search, ChevronLeft, ChevronRight, UserCog, UserMinus, ShieldAlert, Archive, UserPlus } from 'lucide-react';
 import ProfileModal from '../../components/layout/ProfileModal';
 
+interface TableMember extends Member {
+  membershipId?: number;
+  endDate?: string | null;
+}
+
 export default function MembersPage() {
-  const [members, setMembers] = useState<Member[]>([]);
+  const { state } = useAuth();
+  const { user, myMemberships } = state;
+
+  const isAdmin = user?.roles.some(role => ['ADMIN', 'ROLE_ADMIN'].includes(role));
+  const isPresident = user?.roles.some(role => ['PRESIDENT', 'ROLE_PRESIDENT'].includes(role));
+  
+  const managedAssociationIds = myMemberships.map(m => m.associationId);
+
+  const [members, setMembers] = useState<TableMember[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [apiError, setApiError] = useState<string | null>(null);
-  const [searchTerm, setSearchTerm] = useState('');
   
-  // Paginación
+  // Estados de Búsqueda y Filtrado
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterStatus, setFilterStatus] = useState<'ACTIVE' | 'RESERVE' | 'ALL'>('ACTIVE');
+  
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 8;
   
-  // Estados para controlar el Modal localmente
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedMember, setSelectedMember] = useState<Member | null>(null);
+  const [isRecruitModalOpen, setIsRecruitModalOpen] = useState(false);
 
-  useEffect(() => {
-    const fetchMembers = async () => {
-      try {
+  const fetchMembers = async () => {
+    try {
+      setIsLoading(true);
+      setApiError(null);
+
+      if (isAdmin) {
         const data = await membersService.getAll();
         setMembers(data);
-      } catch (error: any) {
-        setApiError(error.message || 'Error al obtener el listado de tropas.');
-      } finally {
-        setIsLoading(false);
+      } else if (isPresident && managedAssociationIds.length > 0) {
+        const myRegimentId = managedAssociationIds[0];
+        const membershipsData = await membershipsService.getByAssociation(myRegimentId);
+        
+        const mappedMembers: TableMember[] = membershipsData.map((m: MembershipOutDto) => {
+          const nameParts = m.memberFullName ? m.memberFullName.split(' ') : ['Desconocido'];
+          const fName = nameParts[0];
+          const lName = nameParts.slice(1).join(' ');
+
+          return {
+            id: m.memberId,
+            membershipId: m.id,
+            nationalId: m.nationalId || '---', 
+            firstName: fName,
+            lastName: lName,
+            email: m.email || 'Sin correo',
+            role: 'member',
+            historicalRank: m.historicalRank || 'Recluta',
+            weaponLicense: m.weaponLicense || '',
+            endDate: m.endDate
+          };
+        });
+
+        setMembers(mappedMembers);
       }
-    };
+    } catch (error: any) {
+      setApiError(error.message || 'Error al obtener el listado de tropas.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
+  useEffect(() => {
     fetchMembers();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAdmin, isPresident]);
 
-  // Filtrado reactivo en el cliente
-  const filteredMembers = members.filter(member => 
-    `${member.firstName} ${member.lastName}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    member.nationalId.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  // Aplicación combinada del buscador y el selector de estados
+  const filteredMembers = members.filter(member => {
+    const matchesSearch = `${member.firstName} ${member.lastName}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                          member.nationalId.toLowerCase().includes(searchTerm.toLowerCase());
+    
+    const isLicenciado = !!member.endDate;
+    
+    if (filterStatus === 'ACTIVE' && isLicenciado) return false;
+    if (filterStatus === 'RESERVE' && !isLicenciado) return false;
+    
+    return matchesSearch;
+  });
 
-  // Cálculos de Paginación
   const totalPages = Math.ceil(filteredMembers.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
   const currentMembers = filteredMembers.slice(startIndex, startIndex + itemsPerPage);
 
+  const handleLicenciar = async (member: TableMember) => {
+    if (!member.membershipId) {
+      alert("Error: No se ha detectado el ID de adscripción. Contacte con el administrador.");
+      return;
+    }
+
+    if (window.confirm(`¿Estás seguro de que deseas licenciar (dar de baja) al recreador ${member.firstName} ${member.lastName}? Su historial se mantendrá en los archivos.`)) {
+      try {
+        await membershipsService.licenciar(member.membershipId);
+        await fetchMembers();
+      } catch (error: any) {
+        setApiError(error.message || "Error de comunicación con el Alto Mando al tramitar la licencia.");
+      }
+    }
+  };
+
+  if (!isAdmin && !isPresident) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 text-stone-500">
+        <ShieldAlert className="h-16 w-16 text-red-500 mb-4" />
+        <h2 className="text-2xl font-bold text-stone-800">Acceso Denegado</h2>
+        <p>No tienes autoridad para acceder al censo de tropas.</p>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
       
-      {/* Cabecera y Buscador */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+      {/* Cabecera, Buscador y Filtros */}
+      <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-6">
         <div>
-          <h1 className="text-3xl font-bold text-amber-900 border-b-2 border-amber-800 pb-2 inline-block">
-            Registro de Recreadores
-          </h1>
-          <p className="text-stone-500 mt-2">Gestión del censo oficial de la asociación.</p>
+          <div className="flex items-center gap-3 mb-2">
+            <h1 className="text-3xl font-bold text-amber-900 border-b-2 border-amber-800 pb-2 inline-block">
+              Registro de Recreadores
+            </h1>
+            {isAdmin && (
+              <span className="bg-amber-900 text-white text-xs font-bold px-2 py-1 rounded uppercase tracking-wider">
+                Modo Mando Supremo
+              </span>
+            )}
+          </div>
+          <p className="text-stone-500 mb-5">
+            {isAdmin 
+              ? 'Gestión global del censo oficial de la Asociación Napoleónica Española.' 
+              : 'Gestión de las tropas adscritas a tu comandancia.'}
+          </p>
+
+          {(isPresident || isAdmin) && (
+            <button 
+              onClick={() => setIsRecruitModalOpen(true)}
+              className="bg-green-700 hover:bg-green-800 text-white px-5 py-2.5 rounded-md font-bold flex items-center gap-2 shadow-md hover:shadow-lg transition-all mb-4 lg:mb-0"
+            >
+              <UserPlus className="h-5 w-5" />
+              Alistar Nuevo Recreador
+            </button>
+          )}
         </div>
         
-        <div className="relative w-full md:w-72">
-          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-            <Search className="h-5 w-5 text-stone-400" />
+        <div className="flex flex-col gap-3 w-full lg:w-auto lg:items-end">
+          {isAdmin && (
+            <select className="block w-full lg:w-[400px] pl-3 pr-10 py-2 border border-stone-300 rounded-md bg-stone-50 text-sm focus:outline-none focus:ring-1 focus:ring-amber-800 focus:border-amber-800">
+              <option value="ALL">Todas las asociaciones (Global)</option>
+              <option value="1">Regimiento de Infantería de Zaragoza</option>
+            </select>
+          )}
+
+          {/* 🔥 SELECTOR DE ESTADOS INYECTADO AQUÍ 🔥 */}
+          <div className="flex bg-stone-100 p-1 rounded-md border border-stone-200 w-full lg:w-[400px]">
+            <button 
+              onClick={() => { setFilterStatus('ACTIVE'); setCurrentPage(1); }}
+              className={`flex-1 px-2 py-1.5 text-xs font-bold rounded transition-colors ${filterStatus === 'ACTIVE' ? 'bg-white shadow-sm text-amber-900' : 'text-stone-500 hover:text-stone-700'}`}
+            >
+              En Activo
+            </button>
+            <button 
+              onClick={() => { setFilterStatus('RESERVE'); setCurrentPage(1); }}
+              className={`flex-1 px-2 py-1.5 text-xs font-bold rounded transition-colors ${filterStatus === 'RESERVE' ? 'bg-white shadow-sm text-amber-900' : 'text-stone-500 hover:text-stone-700'}`}
+            >
+              En Reserva (Bajas)
+            </button>
+            <button 
+              onClick={() => { setFilterStatus('ALL'); setCurrentPage(1); }}
+              className={`flex-1 px-2 py-1.5 text-xs font-bold rounded transition-colors ${filterStatus === 'ALL' ? 'bg-white shadow-sm text-amber-900' : 'text-stone-500 hover:text-stone-700'}`}
+            >
+              Histórico Total
+            </button>
           </div>
-          <input
-            type="text"
-            className="block w-full pl-10 pr-3 py-2 border border-stone-300 rounded-md leading-5 bg-white placeholder-stone-500 focus:outline-none focus:placeholder-stone-400 focus:ring-1 focus:ring-amber-800 focus:border-amber-800 sm:text-sm transition-colors"
-            placeholder="Buscar por nombre o DNI..."
-            value={searchTerm}
-            onChange={(e) => {
-              setSearchTerm(e.target.value);
-              setCurrentPage(1); // Resetear a la primera página al buscar
-            }}
-          />
+
+          <div className="relative w-full lg:w-[400px]">
+            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+              <Search className="h-5 w-5 text-stone-400" />
+            </div>
+            <input
+              type="text"
+              className="block w-full pl-10 pr-3 py-2 border border-stone-300 rounded-md leading-5 bg-white placeholder-stone-500 focus:outline-none focus:placeholder-stone-400 focus:ring-1 focus:ring-amber-800 focus:border-amber-800 sm:text-sm transition-colors"
+              placeholder="Buscar por nombre o DNI..."
+              value={searchTerm}
+              onChange={(e) => {
+                setSearchTerm(e.target.value);
+                setCurrentPage(1);
+              }}
+            />
+          </div>
         </div>
       </div>
 
@@ -79,7 +211,7 @@ export default function MembersPage() {
         </div>
       )}
 
-      {/* Contenedor de la Tabla (Ley de Cierre) */}
+      {/* Contenedor de la Tabla */}
       <div className="bg-white shadow-sm rounded-lg border border-stone-200 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-stone-200">
@@ -89,7 +221,7 @@ export default function MembersPage() {
                 <th scope="col" className="px-6 py-3 text-left text-xs font-bold text-stone-600 uppercase tracking-wider">DNI/Pasaporte</th>
                 <th scope="col" className="px-6 py-3 text-left text-xs font-bold text-stone-600 uppercase tracking-wider">Rango</th>
                 <th scope="col" className="px-6 py-3 text-left text-xs font-bold text-stone-600 uppercase tracking-wider">Licencia Armas</th>
-                <th scope="col" className="px-6 py-3 text-right text-xs font-bold text-stone-600 uppercase tracking-wider">Acciones</th>
+                <th scope="col" className="px-6 py-3 text-right text-xs font-bold text-stone-600 uppercase tracking-wider">Órdenes</th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-stone-200">
@@ -100,52 +232,77 @@ export default function MembersPage() {
                   </td>
                 </tr>
               ) : currentMembers.length > 0 ? (
-                currentMembers.map((member, index) => (
-                  // Cebreado para facilitar la lectura horizontal (Ley de Continuidad)
-                  <tr key={member.id} className={index % 2 === 0 ? 'bg-white' : 'bg-stone-50 hover:bg-stone-100'}>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center">
-                        <div className="h-10 w-10 flex-shrink-0 bg-stone-200 rounded-full flex items-center justify-center text-stone-500">
-                          {member.firstName.charAt(0)}{member.lastName.charAt(0)}
+                currentMembers.map((member, index) => {
+                  const isLicenciado = !!member.endDate;
+
+                  return (
+                    <tr key={member.id} className={`${index % 2 === 0 ? 'bg-white' : 'bg-stone-50'} hover:bg-stone-100 transition-colors ${isLicenciado ? 'opacity-60' : ''}`}>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex items-center">
+                          <div className={`h-10 w-10 flex-shrink-0 rounded-full flex items-center justify-center font-bold ${isLicenciado ? 'bg-stone-200 text-stone-400' : 'bg-stone-200 text-stone-600'}`}>
+                            {member.firstName.charAt(0)}{member.lastName.charAt(0)}
+                          </div>
+                          <div className="ml-4">
+                            <div className="text-sm font-bold text-stone-900 flex items-center gap-2">
+                              {member.firstName} {member.lastName}
+                              {isLicenciado && <span className="bg-stone-200 text-stone-600 text-[10px] px-2 py-0.5 rounded uppercase tracking-wide">Reserva</span>}
+                            </div>
+                            <div className="text-sm text-stone-500">{member.email}</div>
+                          </div>
                         </div>
-                        <div className="ml-4">
-                          <div className="text-sm font-bold text-stone-900">{member.firstName} {member.lastName}</div>
-                          <div className="text-sm text-stone-500">{member.email}</div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-stone-700 font-medium">
+                        {member.nationalId}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${isLicenciado ? 'bg-stone-100 text-stone-500' : 'bg-amber-100 text-amber-800'}`}>
+                          {member.historicalRank || 'Recluta'}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-stone-500">
+                        {member.weaponLicense ? (
+                          <span className="text-stone-800 font-medium">{member.weaponLicense}</span>
+                        ) : (
+                          <span className="text-stone-400 italic">Sin licencia</span>
+                        )}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                        <div className="flex items-center justify-end gap-3">
+                          <button 
+                            onClick={() => {
+                              setSelectedMember(member);
+                              setIsModalOpen(true);
+                            }}
+                            className="text-stone-500 hover:text-amber-800 transition-colors"
+                            title="Ver Expediente"
+                          >
+                            <UserCog className="h-5 w-5" />
+                          </button>
+                          
+                          {isPresident && !isAdmin && (
+                            isLicenciado ? (
+                              <span title="Archivado en la reserva" className="flex items-center justify-center">
+                                <Archive className="h-5 w-5 text-stone-300" />
+                              </span>
+                            ) : (
+                              <button 
+                                onClick={() => handleLicenciar(member)}
+                                className="text-stone-400 hover:text-red-600 transition-colors"
+                                title="Licenciar / Dar de baja"
+                              >
+                                <UserMinus className="h-5 w-5" />
+                              </button>
+                            )
+                          )}
                         </div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-stone-700 font-medium">
-                      {member.nationalId}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-amber-100 text-amber-800">
-                        {member.historicalRank || 'Recluta'}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-stone-500">
-                      {member.weaponLicense ? (
-                        <span className="text-stone-800 font-medium">{member.weaponLicense}</span>
-                      ) : (
-                        <span className="text-stone-400 italic">Sin licencia</span>
-                      )}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                      <button 
-                        onClick={() => {
-                          setSelectedMember(member);
-                          setIsModalOpen(true);
-                        }}
-                        className="text-amber-800 hover:text-amber-900 transition-colors flex items-center justify-end w-full">
-                        <UserCog className="h-5 w-5 mr-1" />
-                        Perfil
-                      </button>
-                    </td>
-                  </tr>
-                ))
+                      </td>
+                    </tr>
+                  );
+                })
               ) : (
                 <tr>
                   <td colSpan={5} className="px-6 py-8 text-center text-stone-500">
-                    No se encontraron tropas con esos criterios.
+                    No se encontraron tropas en este sector.
                   </td>
                 </tr>
               )}
@@ -163,7 +320,7 @@ export default function MembersPage() {
                 </p>
               </div>
               <div>
-                <nav className="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination">
+                <nav className="relative z-0 inline-flex rounded-md shadow-sm -space-x-px">
                   <button
                     onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
                     disabled={currentPage === 1}
@@ -188,11 +345,20 @@ export default function MembersPage() {
         )}
       </div>
 
-      {/* Modal inyectado localmente */}
       <ProfileModal 
         isOpen={isModalOpen} 
         member={selectedMember} 
         onClose={() => setIsModalOpen(false)} 
+      />
+
+      <RecruitModal 
+        isOpen={isRecruitModalOpen}
+        onClose={() => setIsRecruitModalOpen(false)}
+        associationId={managedAssociationIds[0]}
+        onSuccess={() => {
+          setIsRecruitModalOpen(false);
+          fetchMembers();
+        }}
       />
     </div>
   );
