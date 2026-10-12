@@ -8,10 +8,11 @@ interface RecruitModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess: () => void;
-  associationId: number; // Necesitamos saber a qué regimiento va
+  associationId: number;
+  isAdmin?: boolean; // Prop fundamental para saber si lo abre el Mando Supremo
 }
 
-export default function RecruitModal({ isOpen, onClose, onSuccess, associationId }: RecruitModalProps) {
+export default function RecruitModal({ isOpen, onClose, onSuccess, associationId, isAdmin }: RecruitModalProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -21,7 +22,7 @@ export default function RecruitModal({ isOpen, onClose, onSuccess, associationId
     lastName: '',
     nationalId: '',
     email: '',
-    password: '', // El presidente le asigna una clave inicial
+    password: '', 
     phone: '',
     historicalRank: 'Recluta',
     weaponLicense: '',
@@ -40,10 +41,10 @@ export default function RecruitModal({ isOpen, onClose, onSuccess, associationId
     setError(null);
 
     try {
-      // 1. Damos de alta al soldado en el sistema general
+      // 1. Damos de alta al soldado/presidente en el sistema general
       const newMember = await membersService.create(formData);
 
-      // 2. Lo adscribimos automáticamente al regimiento del Presidente
+      // 2. Lo adscribimos automáticamente al regimiento seleccionado
       await membershipsService.enroll({
         associationId: associationId,
         memberId: newMember.id
@@ -73,7 +74,7 @@ export default function RecruitModal({ isOpen, onClose, onSuccess, associationId
           </button>
         </div>
 
-        {/* Cuerpo con Scroll (Por si en móviles se ve pequeño) */}
+        {/* Cuerpo con Scroll */}
         <div className="p-6 overflow-y-auto">
           {error && (
             <div className="mb-6 p-4 bg-red-50 text-red-800 border-l-4 border-red-700 rounded shadow-sm flex items-center gap-3">
@@ -112,7 +113,6 @@ export default function RecruitModal({ isOpen, onClose, onSuccess, associationId
 
             <div className="border-b border-stone-200 pb-4">
               <h4 className="text-lg font-bold text-amber-900 mb-4">Credenciales de Acceso</h4>
-              <p className="text-xs text-stone-500 mb-3">Establece el acceso inicial para que el soldado pueda entrar a la intranet.</p>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-bold text-stone-700 mb-1">Correo Electrónico</label>
@@ -142,6 +142,31 @@ export default function RecruitModal({ isOpen, onClose, onSuccess, associationId
                 </div>
               </div>
             </div>
+
+            {/* BLOQUE INYECTADO PARA EL ADMINISTRADOR */}
+            {isAdmin && (
+              <div className="border-t border-stone-200 pt-4 mt-6">
+                <h4 className="text-lg font-bold text-amber-900 mb-4 flex items-center gap-2">
+                  <ShieldAlert className="h-5 w-5 text-amber-900" />
+                  Privilegios de Sistema (Solo Administración)
+                </h4>
+                <div className="grid grid-cols-1 gap-4">
+                  <div>
+                    <label className="block text-sm font-bold text-stone-700 mb-1">Nivel de Acceso en la Plataforma</label>
+                    <select 
+                      name="role" 
+                      value={formData.role} 
+                      onChange={handleChange}
+                      className="w-full px-3 py-2 border border-red-300 bg-red-50 text-red-900 rounded focus:ring-2 focus:ring-red-700 font-medium outline-none"
+                    >
+                      <option value="member">Tropa / Recreador Estándar</option>
+                      <option value="president">Presidente de Asociación</option>
+                    </select>
+                    <p className="text-xs text-red-600 mt-1">Cuidado: Asignar el rol de Presidente otorgará control total sobre el regimiento seleccionado.</p>
+                  </div>
+                </div>
+              </div>
+            )}
 
           </form>
         </div>

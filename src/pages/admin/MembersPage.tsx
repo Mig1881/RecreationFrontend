@@ -4,6 +4,7 @@ import RecruitModal from '../../components/members/RecruitModal';
 import { membersService, type Member } from '../../services/members.service';
 import { membershipsService, type MembershipOutDto } from '../../services/memberships.service';
 import { useAuth } from '../../context/AuthContext';
+import { apiClient } from '../../api/apiClient'; // 🔥 IMPORTAMOS EL CLIENTE API PARA LAS ASOCIACIONES
 import { Search, ChevronLeft, ChevronRight, UserCog, UserMinus, ShieldAlert, Archive, UserPlus } from 'lucide-react';
 import ProfileModal from '../../components/layout/ProfileModal';
 
@@ -22,12 +23,14 @@ export default function MembersPage() {
   const managedAssociationIds = myMemberships.map(m => m.associationId);
 
   const [members, setMembers] = useState<TableMember[]>([]);
+  const [adminAssociations, setAdminAssociations] = useState<any[]>([]); // 🔥 NUEVO ESTADO PARA CARGAR ASOCIACIONES
   const [isLoading, setIsLoading] = useState(true);
   const [apiError, setApiError] = useState<string | null>(null);
   
-  // Estados de Búsqueda y Filtrado
+  // Estados de Búsqueda, Filtrado y Selección de Admin
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState<'ACTIVE' | 'RESERVE' | 'ALL'>('ACTIVE');
+  const [selectedAdminAssociation, setSelectedAdminAssociation] = useState<string>('ALL');
   
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 8;
@@ -35,6 +38,21 @@ export default function MembersPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedMember, setSelectedMember] = useState<Member | null>(null);
   const [isRecruitModalOpen, setIsRecruitModalOpen] = useState(false);
+
+  // Cargar asociaciones para el Admin
+  useEffect(() => {
+    const fetchAssociations = async () => {
+      if (isAdmin) {
+        try {
+          const data = await apiClient<any[]>('/associations'); // Ajusta la ruta si es distinta en tu backend
+          setAdminAssociations(data);
+        } catch (error) {
+          console.error("Error al cargar asociaciones para el desplegable del admin:", error);
+        }
+      }
+    };
+    fetchAssociations();
+  }, [isAdmin]);
 
   const fetchMembers = async () => {
     try {
@@ -90,6 +108,12 @@ export default function MembersPage() {
     
     if (filterStatus === 'ACTIVE' && isLicenciado) return false;
     if (filterStatus === 'RESERVE' && !isLicenciado) return false;
+    
+    // FILTRO PARA EL ADMIN: Mostrar solo los miembros de la asociación seleccionada
+    // Nota: Como el getAll() del admin trae la entidad Member pura (no el MembershipOutDto),
+    // y la entidad Member en tu backend NO parece tener la id de la asociación, 
+    // el filtro por asociación visual en la tabla para el admin es complejo sin tocar el backend.
+    // Por ahora, dejamos que el admin vea A TODOS en la tabla, y use el select SOLO para alistar.
     
     return matchesSearch;
   });
@@ -148,7 +172,13 @@ export default function MembersPage() {
 
           {(isPresident || isAdmin) && (
             <button 
-              onClick={() => setIsRecruitModalOpen(true)}
+              onClick={() => {
+                if (isAdmin && selectedAdminAssociation === 'ALL') {
+                  alert("Atención Mando Supremo: Seleccione un regimiento específico en el desplegable superior derecho antes de alistar a una unidad.");
+                  return;
+                }
+                setIsRecruitModalOpen(true);
+              }}
               className="bg-green-700 hover:bg-green-800 text-white px-5 py-2.5 rounded-md font-bold flex items-center gap-2 shadow-md hover:shadow-lg transition-all mb-4 lg:mb-0"
             >
               <UserPlus className="h-5 w-5" />
@@ -159,13 +189,22 @@ export default function MembersPage() {
         
         <div className="flex flex-col gap-3 w-full lg:w-auto lg:items-end">
           {isAdmin && (
-            <select className="block w-full lg:w-[400px] pl-3 pr-10 py-2 border border-stone-300 rounded-md bg-stone-50 text-sm focus:outline-none focus:ring-1 focus:ring-amber-800 focus:border-amber-800">
-              <option value="ALL">Todas las asociaciones (Global)</option>
-              <option value="1">Regimiento de Infantería de Zaragoza</option>
+            <select 
+              value={selectedAdminAssociation}
+              onChange={(e) => setSelectedAdminAssociation(e.target.value)}
+              className="block w-full lg:w-[400px] pl-3 pr-10 py-2 border border-stone-300 rounded-md bg-stone-50 text-sm focus:outline-none focus:ring-1 focus:ring-amber-800 focus:border-amber-800"
+            >
+              <option value="ALL">Todas las asociaciones (Selecciona una para alistar...)</option>
+              {/* 🔥 AHORA EL SELECTOR SE LLENA DINÁMICAMENTE */}
+              {adminAssociations.map((assoc: any) => (
+                <option key={assoc.id} value={assoc.id}>
+                  {assoc.name || `Asociación #${assoc.id}`}
+                </option>
+              ))}
             </select>
           )}
 
-          {/* 🔥 SELECTOR DE ESTADOS INYECTADO AQUÍ 🔥 */}
+          {/* Selector de Estados */}
           <div className="flex bg-stone-100 p-1 rounded-md border border-stone-200 w-full lg:w-[400px]">
             <button 
               onClick={() => { setFilterStatus('ACTIVE'); setCurrentPage(1); }}
@@ -279,7 +318,7 @@ export default function MembersPage() {
                             <UserCog className="h-5 w-5" />
                           </button>
                           
-                          {isPresident && !isAdmin && (
+                          {(isPresident || isAdmin) && (
                             isLicenciado ? (
                               <span title="Archivado en la reserva" className="flex items-center justify-center">
                                 <Archive className="h-5 w-5 text-stone-300" />
@@ -354,7 +393,8 @@ export default function MembersPage() {
       <RecruitModal 
         isOpen={isRecruitModalOpen}
         onClose={() => setIsRecruitModalOpen(false)}
-        associationId={managedAssociationIds[0]}
+        associationId={isAdmin ? Number(selectedAdminAssociation) : (managedAssociationIds[0] || 0)}
+        isAdmin={isAdmin}
         onSuccess={() => {
           setIsRecruitModalOpen(false);
           fetchMembers();

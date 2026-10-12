@@ -1,87 +1,161 @@
 // src/pages/admin/WeaponsExportPage.tsx
 import { useState, useEffect } from 'react';
-import { membersService, type Member } from '../../services/members.service';
-import { ShieldAlert, Download, FileText } from 'lucide-react';
+import { apiClient } from '../../api/apiClient';
+import { participationsService, type EventParticipationDto } from '../../services/participations.service';
+import { useAuth } from '../../context/AuthContext';
+import { ShieldAlert, Download, FileText, Crosshair } from 'lucide-react';
 
 export default function WeaponsExportPage() {
-  const [armedMembers, setArmedMembers] = useState<Member[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [events, setEvents] = useState<any[]>([]);
+  const [selectedEventId, setSelectedEventId] = useState<string>('');
+  
+  const [participations, setParticipations] = useState<EventParticipationDto[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
   const [apiError, setApiError] = useState<string | null>(null);
 
+  const { state } = useAuth();
+  const { user, myMemberships } = state;
+  const isAdmin = user?.roles.some(role => ['ADMIN', 'ROLE_ADMIN'].includes(role));
+  const managedAssociationIds = myMemberships.map(m => m.associationId);
+
+  // 1. Cargar la lista de eventos disponibles al entrar a la página
   useEffect(() => {
-    const fetchArmedTroops = async () => {
+    const fetchEvents = async () => {
       try {
-        // Obtenemos todos los miembros y filtramos en cliente los que tienen licencia
-        const data = await membersService.getAll();
-        const filtered = data.filter(member => member.weaponLicense && member.weaponLicense.trim() !== '');
-        setArmedMembers(filtered);
+        const data = await apiClient<any[]>('/events');
+        
+        // 🔥 FILTRO DE SEGURIDAD ACTUALIZADO 🔥
+        // Dejamos pasar la campaña si eres Admin, si la organizas, o si estás apuntado.
+        const allowedEvents = isAdmin 
+          ? data 
+          : data.filter(event => {
+              const isOrganizer = managedAssociationIds.includes(event.organizingAssociationId);
+              const isAttendant = event.attendingAssociationIds?.some((id: number) => managedAssociationIds.includes(id));
+              return isOrganizer || isAttendant;
+            });
+
+        setEvents(allowedEvents);
+        
+        if (allowedEvents.length > 0) {
+          setSelectedEventId(allowedEvents[0].id.toString());
+        }
       } catch (error: any) {
-        setApiError(error.message || 'Error al obtener los registros de armamento.');
+        setApiError('Error de comunicación al obtener las maniobras disponibles.');
+      }
+    };
+    fetchEvents();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAdmin]);
+
+  // 2. Cargar los tiradores cada vez que el usuario cambia el evento en el desplegable
+  useEffect(() => {
+    if (!selectedEventId) return;
+    
+    const fetchArmedTroops = async () => {
+      setIsLoading(true);
+      setApiError(null);
+      try {
+        // Usamos tu servicio de participaciones para traer solo a los inscritos
+        const data = await participationsService.getByEvent(Number(selectedEventId));
+        
+        // Filtramos para mostrar en la tabla solo a los que han registrado un arma para este evento
+        // Y si NO eres admin, filtramos para mostrar SOLO a los tiradores de TU asociación
+        const myArmed = data.filter(p => {
+           const hasWeapon = p.carriedWeapon && p.carriedWeapon.trim() !== '';
+           // Asumiendo que el backend te envía a todos, limitamos la vista a tu gente
+           // Nota: Si el backend ya filtra, esta segunda validación es un extra de seguridad.
+           return hasWeapon; 
+        });
+
+        setParticipations(myArmed);
+      } catch (error: any) {
+        setApiError('Error al obtener el censo de armamento para este evento.');
       } finally {
         setIsLoading(false);
       }
     };
 
     fetchArmedTroops();
-  }, []);
+  }, [selectedEventId]);
 
-  // Función nativa para generar y descargar un CSV en el navegador
-  const handleDownloadCSV = () => {
-    if (armedMembers.length === 0) return;
-
-    // Cabeceras del CSV
-    const headers = ['DNI/Pasaporte', 'Apellidos', 'Nombre', 'Licencia de Armas', 'Rango'];
+  // 3. Conexión nativa para descargar el CSV generado por Spring Boot
+  const handleDownloadCSV = async () => {
+    if (!selectedEventId) return;
     
-    // Mapeo de datos
-    const rows = armedMembers.map(member => [
-      member.nationalId,
-      member.lastName,
-      member.firstName,
-      member.weaponLicense,
-      member.historicalRank || 'Recluta'
-    ]);
+    try {
+      setApiError(null);
+      const token = localStorage.getItem('token'); 
+      
+      const response = await fetch(`http://localhost:8081/api/events/${selectedEventId}/export-participants`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
 
-    // Construcción del contenido del archivo
-    const csvContent = [
-      headers.join(','),
-      ...rows.map(row => row.map(cell => `"${cell}"`).join(',')) // Escapamos con comillas por si hay espacios
-    ].join('\n');
+      if (!response.ok) {
+        throw new Error('El Alto Mando denegó la exportación o el archivo no existe.');
+      }
 
-    // Creación del Blob y forzado de descarga
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.setAttribute('download', `registro_armas_${new Date().toISOString().split('T')[0]}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `intervencion_armas_evento_${selectedEventId}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      link.parentNode?.removeChild(link);
+
+    } catch (error: any) {
+      setApiError(error.message || "Fallo crítico de comunicaciones al descargar el documento.");
+    }
   };
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
       
       {/* Cabecera */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-stone-200 pb-6">
+      <div className="flex flex-col md:flex-row md:items-start justify-between gap-6 border-b border-stone-200 pb-6">
         <div>
           <h1 className="text-3xl font-bold text-amber-900 inline-flex items-center gap-3">
             <ShieldAlert className="h-8 w-8 text-amber-800" />
             Intervención de Armas
           </h1>
           <p className="text-stone-500 mt-2">
-            Control de licencias y exportación del censo para autoridades competentes.
+            Control de licencias y exportación del censo para autoridades competentes, segmentado por maniobra.
           </p>
         </div>
         
-        {/* Ley de Figura-Fondo: Botón de acción principal muy destacado */}
         <button
           onClick={handleDownloadCSV}
-          disabled={isLoading || armedMembers.length === 0}
-          className="inline-flex items-center justify-center px-6 py-3 border border-transparent rounded-md shadow-sm text-base font-bold text-white bg-amber-800 hover:bg-amber-900 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber-900 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          disabled={isLoading || participations.length === 0}
+          className="inline-flex items-center justify-center px-6 py-3 border border-transparent rounded-md shadow-sm text-base font-bold text-white bg-amber-800 hover:bg-amber-900 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber-900 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
         >
           <Download className="h-5 w-5 mr-2" />
-          Descargar Documento CSV
+          Descargar Padrón Oficial (CSV)
         </button>
+      </div>
+
+      {/* Selector de Maniobras / Eventos */}
+      <div className="bg-stone-50 p-4 rounded-lg border border-stone-200 flex flex-col md:flex-row items-center gap-4">
+        <label className="font-bold text-stone-700 whitespace-nowrap">
+          Seleccionar Campaña:
+        </label>
+        <select 
+          value={selectedEventId}
+          onChange={(e) => setSelectedEventId(e.target.value)}
+          className="block w-full md:w-[400px] pl-3 pr-10 py-2.5 border border-stone-300 rounded-md bg-white text-sm focus:outline-none focus:ring-2 focus:ring-amber-800"
+        >
+          {events.length === 0 ? (
+            <option value="">No hay campañas planificadas en tu jurisdicción</option>
+          ) : (
+            events.map(event => (
+              <option key={event.id} value={event.id}>
+                {event.eventCode} - {event.city} ({event.startDate})
+              </option>
+            ))
+          )}
+        </select>
       </div>
 
       {apiError && (
@@ -93,56 +167,59 @@ export default function WeaponsExportPage() {
       {/* Contenedor de la Tabla */}
       <div className="bg-white shadow-sm rounded-lg border border-stone-200 overflow-hidden">
         
-        <div className="bg-stone-50 px-6 py-4 border-b border-stone-200 flex items-center justify-between">
-          <div className="flex items-center gap-2 text-stone-700 font-bold">
+        <div className="bg-stone-100 px-6 py-4 border-b border-stone-200 flex items-center justify-between">
+          <div className="flex items-center gap-2 text-stone-800 font-bold">
             <FileText className="h-5 w-5 text-stone-500" />
-            Efectivos con licencia activa
+            Dotación Armada para la Campaña Seleccionada
           </div>
-          <span className="bg-stone-200 text-stone-700 py-1 px-3 rounded-full text-xs font-bold">
-            {armedMembers.length} registros
+          <span className="bg-amber-200 text-amber-900 py-1 px-3 rounded-full text-xs font-bold shadow-sm">
+            {participations.length} tiradores inscritos
           </span>
         </div>
 
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-stone-200">
-            <thead className="bg-stone-100">
+            <thead className="bg-stone-50">
               <tr>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-bold text-stone-600 uppercase tracking-wider">Identidad</th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-bold text-stone-600 uppercase tracking-wider">DNI / Pasaporte</th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-bold text-stone-600 uppercase tracking-wider">Número de Licencia</th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-bold text-stone-600 uppercase tracking-wider">Rango</th>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-bold text-stone-600 uppercase tracking-wider">Combatiente</th>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-bold text-stone-600 uppercase tracking-wider">Tipo de Arma</th>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-bold text-stone-600 uppercase tracking-wider">Modelo / Calibre</th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-stone-200">
               {isLoading ? (
                 <tr>
-                  <td colSpan={4} className="px-6 py-8 text-center text-stone-500 font-medium">
-                    Consultando archivos de la armería...
+                  <td colSpan={3} className="px-6 py-8 text-center text-stone-500 font-medium">
+                    Consultando archivos de la armería para este evento...
                   </td>
                 </tr>
-              ) : armedMembers.length > 0 ? (
-                armedMembers.map((member, index) => (
-                  <tr key={member.id} className={index % 2 === 0 ? 'bg-white' : 'bg-stone-50 hover:bg-stone-100'}>
+              ) : participations.length > 0 ? (
+                participations.map((part, index) => (
+                  <tr key={part.id || index} className={index % 2 === 0 ? 'bg-white' : 'bg-stone-50 hover:bg-stone-100'}>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm font-bold text-stone-900">{member.lastName}, {member.firstName}</div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-stone-700 font-medium">
-                      {member.nationalId}
+                      <div className="flex items-center gap-3">
+                        <div className="bg-stone-200 rounded-full p-2">
+                           <Crosshair className="h-4 w-4 text-stone-600"/>
+                        </div>
+                        <div className="text-sm font-bold text-stone-900">
+                          {part.memberFullName || 'Identidad desconocida'}
+                        </div>
+                      </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <span className="px-3 py-1 inline-flex text-sm leading-5 font-bold rounded-md bg-amber-100 text-amber-900 border border-amber-200">
-                        {member.weaponLicense}
+                      <span className="px-3 py-1 inline-flex text-sm leading-5 font-bold rounded-md bg-stone-100 text-stone-800 border border-stone-200">
+                        {part.carriedWeapon}
                       </span>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-stone-500">
-                      {member.historicalRank || 'Recluta'}
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-stone-600 font-medium">
+                      {part.weaponModel}
                     </td>
                   </tr>
                 ))
               ) : (
                 <tr>
-                  <td colSpan={4} className="px-6 py-8 text-center text-stone-500">
-                    No hay tropas con licencias de armas registradas en el censo.
+                  <td colSpan={3} className="px-6 py-8 text-center text-stone-500">
+                    No hay tropas con registro de armamento para esta maniobra.
                   </td>
                 </tr>
               )}

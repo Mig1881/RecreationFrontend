@@ -62,7 +62,7 @@ export default function App() {
             <Route 
               path="admin/associations" 
               element={
-                <RequireRole allowedRoles={['ADMIN', 'PRESIDENT', 'ROLE_ADMIN', 'ROLE_PRESIDENT']}>
+                <RequireRole allowedRoles={['ADMIN', 'ROLE_ADMIN']}>
                   <AdminAssociationsPage />
                 </RequireRole>
               } 

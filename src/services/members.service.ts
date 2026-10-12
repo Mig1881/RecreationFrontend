@@ -15,6 +15,7 @@ export interface Member {
   imageUrl?: string;
   email: string;
   role: string;
+  enrollmentDate?: string;
 }
 
 export const membersService = {
