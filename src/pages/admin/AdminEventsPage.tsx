@@ -3,9 +3,9 @@ import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { eventsService, type HistoricEvent, type PublicEvent, type PrivateEvent } from '../../services/events.service';
 import { associationsService, type Association } from '../../services/associations.service';
+import { useAuth } from '../../context/AuthContext';
 import { MapPin, Edit, Trash2, Plus, X, LockOpen, Lock, CalendarDays } from 'lucide-react';
 
-// Interfaz "plana" exclusiva para que el formulario (React Hook Form) no dé errores de tipado
 interface EventFormData {
   eventCode: string;
   eventType: 'PUBLIC' | 'PRIVATE';
@@ -16,10 +16,8 @@ interface EventFormData {
   endDate: string;
   cost?: number;
   published: boolean;
-  // Campos de Público
   publicEntity?: string;
   subsidy?: number;
-  // Campos de Privado
   sponsor?: string;
   initialBudget?: number;
   openToPublic?: boolean;
@@ -34,10 +32,12 @@ export default function AdminEventsPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
 
-  // El formulario ahora usa la interfaz "plana"
+  const { state } = useAuth();
+  const { user, myMemberships } = state;
+  const isAdmin = user?.roles.some(role => ['ADMIN', 'ROLE_ADMIN'].includes(role));
+  const managedAssociationIds = myMemberships.map(m => m.associationId);
+
   const { register, handleSubmit, reset, watch } = useForm<EventFormData>();
-  
-  // Observamos el tipo para cambiar los campos visualmente
   const watchedEventType = watch('eventType', 'PUBLIC');
 
   const loadData = async () => {
@@ -57,12 +57,16 @@ export default function AdminEventsPage() {
 
   useEffect(() => { loadData(); }, []);
 
+  const visibleEvents = events.filter(event => {
+    if (isAdmin) return true;
+    return managedAssociationIds.includes(event.organizingAssociationId!);
+  });
+
   const openModal = (event?: HistoricEvent) => {
     setFeedback(null);
     if (event) {
       setEditingId(event.id!);
       
-      // Mapeamos el evento estricto a la interfaz plana del formulario
       const formData: any = {
         eventCode: event.eventCode,
         eventType: event.eventType,
@@ -87,7 +91,8 @@ export default function AdminEventsPage() {
       reset(formData);
     } else {
       setEditingId(null);
-      reset({ eventCode: '', eventType: 'PUBLIC', country: 'España', city: '', published: false });
+      const defaultAssoc = !isAdmin && managedAssociationIds.length > 0 ? managedAssociationIds[0].toString() : '';
+      reset({ eventCode: '', eventType: 'PUBLIC', country: 'España', city: '', published: false, organizingAssociationId: defaultAssoc });
     }
     setIsModalOpen(true);
   };
@@ -97,17 +102,22 @@ export default function AdminEventsPage() {
     setEditingId(null);
   };
 
- // Convertimos los datos del formulario a tu tipo estricto antes de enviar
   const onSubmit = async (data: EventFormData) => {
     setFeedback(null);
-    
-    let payload: any; // Usamos 'any' en el envío para poder empaquetar el objeto como pide Spring Boot
+    let payload: any; 
 
-    const organizingAssociationPayload = data.organizingAssociationId 
-      ? { id: Number(data.organizingAssociationId) } 
+    let finalAssociationId = data.organizingAssociationId;
+    if (!isAdmin) {
+       if(!managedAssociationIds.includes(Number(finalAssociationId))) {
+           setFeedback({ type: 'error', text: 'Violación de seguridad: No puedes crear campañas en nombre de otro regimiento.' });
+           return;
+       }
+    }
+
+    const organizingAssociationPayload = finalAssociationId 
+      ? { id: Number(finalAssociationId) } 
       : null;
 
-    // Construcción de la base común del evento
     const basePayload = {
       eventCode: data.eventCode,
       country: data.country,
@@ -119,7 +129,6 @@ export default function AdminEventsPage() {
       organizingAssociation: organizingAssociationPayload
     };
 
-    // Construcción estricta y segura dependiendo del tipo
     if (data.eventType === 'PUBLIC') {
       payload = {
         ...basePayload,
@@ -152,7 +161,6 @@ export default function AdminEventsPage() {
     }
   };
   
-
   const handleDelete = async (id: number, code: string) => {
     if (!window.confirm(`¿Estás seguro de cancelar definitivamente la campaña ${code}?`)) return;
     try {
@@ -201,10 +209,10 @@ export default function AdminEventsPage() {
             <tbody className="bg-white divide-y divide-stone-200">
               {isLoading ? (
                 <tr><td colSpan={4} className="px-6 py-8 text-center text-stone-500">Recopilando mapas...</td></tr>
-              ) : events.length === 0 ? (
-                <tr><td colSpan={4} className="px-6 py-8 text-center text-stone-500">No hay campañas programadas.</td></tr>
+              ) : visibleEvents.length === 0 ? (
+                <tr><td colSpan={4} className="px-6 py-8 text-center text-stone-500">No hay campañas programadas en tu jurisdicción.</td></tr>
               ) : (
-                events.map((event, index) => (
+                visibleEvents.map((event, index) => (
                   <tr key={event.id} className={index % 2 === 0 ? 'bg-white' : 'bg-stone-50'}>
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
@@ -253,31 +261,27 @@ export default function AdminEventsPage() {
                 <div>
                   <label className="block text-sm font-bold text-stone-700 mb-1">Asociación Organizadora</label>
                   <select 
-                    className="w-full px-3 py-2 border rounded bg-stone-50" 
+                    className={`w-full px-3 py-2 border rounded bg-stone-50 outline-none ${!isAdmin ? 'pointer-events-none opacity-60 bg-stone-200' : ''}`} 
                     {...register('organizingAssociationId', { required: true })} 
+                    tabIndex={!isAdmin ? -1 : 0}
                   >
                     <option value="" disabled>-- Selecciona un regimiento --</option>
-                    {associations.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+                    {associations
+                        .filter(a => isAdmin ? true : managedAssociationIds.includes(a.id!))
+                        .map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
                   </select>
                 </div>
                 <div>
                   <label className="block text-sm font-bold text-stone-700 mb-1">Tipo de Evento</label>
-                  {editingId ? (
-                    <input 
-                      type="text" 
-                      value={watchedEventType === 'PUBLIC' ? 'Recreación Pública' : 'Maniobras Privadas'} 
-                      disabled 
-                      className="w-full px-3 py-2 border rounded bg-stone-200 text-stone-500 cursor-not-allowed font-bold" 
-                    />
-                  ) : (
-                    <select 
-                      className="w-full px-3 py-2 border rounded bg-stone-50 font-bold" 
-                      {...register('eventType', { required: true })}
-                    >
-                      <option value="PUBLIC">Recreación Pública</option>
-                      <option value="PRIVATE">Maniobras Privadas</option>
-                    </select>
-                  )}
+                  {/* 🔥 ARREGLO DEFINITIVO: Sin input hidden, congelamos visualmente el select real */}
+                  <select 
+                    className={`w-full px-3 py-2 border rounded font-bold outline-none ${editingId ? 'pointer-events-none opacity-60 bg-stone-200 text-stone-500' : 'bg-stone-50'}`} 
+                    {...register('eventType', { required: true })}
+                    tabIndex={editingId ? -1 : 0}
+                  >
+                    <option value="PUBLIC">Recreación Pública</option>
+                    <option value="PRIVATE">Maniobras Privadas</option>
+                  </select>
                 </div>
               </div>
 
@@ -294,26 +298,26 @@ export default function AdminEventsPage() {
                   <>
                     <div>
                       <label className="block text-sm font-bold text-stone-700 mb-1">Entidad Pública</label>
-                      <input type="text" placeholder="Ej: Ayuntamiento de Zaragoza" className="w-full px-3 py-2 border rounded" {...register('publicEntity', { required: watchedEventType === 'PUBLIC' })} />
+                      <input type="text" placeholder="Ej: Ayuntamiento de Zaragoza" className="w-full px-3 py-2 border rounded outline-none focus:ring-1 focus:ring-amber-800" {...register('publicEntity', { required: watchedEventType === 'PUBLIC' })} />
                     </div>
                     <div>
                       <label className="block text-sm font-bold text-stone-700 mb-1">Subvención (€)</label>
-                      <input type="number" step="0.01" className="w-full px-3 py-2 border rounded" {...register('subsidy', { valueAsNumber: true })} />
+                      <input type="number" step="0.01" className="w-full px-3 py-2 border rounded outline-none focus:ring-1 focus:ring-amber-800" {...register('subsidy', { valueAsNumber: true })} />
                     </div>
                   </>
                 ) : (
                   <>
                     <div>
                       <label className="block text-sm font-bold text-stone-700 mb-1">Patrocinador</label>
-                      <input type="text" placeholder="Ej: Asociación Histórica" className="w-full px-3 py-2 border rounded" {...register('sponsor', { required: watchedEventType === 'PRIVATE' })} />
+                      <input type="text" placeholder="Ej: Asociación Histórica" className="w-full px-3 py-2 border rounded outline-none focus:ring-1 focus:ring-amber-800" {...register('sponsor', { required: watchedEventType === 'PRIVATE' })} />
                     </div>
                     <div>
                       <label className="block text-sm font-bold text-stone-700 mb-1">Presupuesto Inicial (€)</label>
-                      <input type="number" step="0.01" className="w-full px-3 py-2 border rounded" {...register('initialBudget', { valueAsNumber: true })} />
+                      <input type="number" step="0.01" className="w-full px-3 py-2 border rounded outline-none focus:ring-1 focus:ring-amber-800" {...register('initialBudget', { valueAsNumber: true })} />
                     </div>
                     <div className="md:col-span-2 flex items-center gap-2 mt-2">
                       <input type="checkbox" id="openToPublic" className="h-4 w-4 text-amber-800" {...register('openToPublic')} />
-                      <label htmlFor="openToPublic" className="text-sm font-bold text-stone-700">Permitir acceso al público general</label>
+                      <label htmlFor="openToPublic" className="text-sm font-bold text-stone-700 cursor-pointer">Permitir acceso al público general</label>
                     </div>
                   </>
                 )}
@@ -321,11 +325,11 @@ export default function AdminEventsPage() {
                 <div className="md:col-span-2 grid grid-cols-2 gap-4 mt-2">
                    <div>
                       <label className="block text-sm font-bold text-stone-700 mb-1">País</label>
-                      <input type="text" className="w-full px-3 py-2 border rounded" {...register('country', { required: true })} />
+                      <input type="text" className="w-full px-3 py-2 border rounded outline-none focus:ring-1 focus:ring-amber-800" {...register('country', { required: true })} />
                     </div>
                     <div>
                       <label className="block text-sm font-bold text-stone-700 mb-1">Ciudad</label>
-                      <input type="text" className="w-full px-3 py-2 border rounded" {...register('city', { required: true })} />
+                      <input type="text" className="w-full px-3 py-2 border rounded outline-none focus:ring-1 focus:ring-amber-800" {...register('city', { required: true })} />
                     </div>
                 </div>
               </div>
@@ -333,17 +337,17 @@ export default function AdminEventsPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-bold text-stone-700 mb-1">Fecha de Inicio</label>
-                  <input type="date" className="w-full px-3 py-2 border rounded bg-stone-50" {...register('startDate', { required: true })} />
+                  <input type="date" className="w-full px-3 py-2 border rounded bg-stone-50 outline-none focus:ring-1 focus:ring-amber-800" {...register('startDate', { required: true })} />
                 </div>
                 <div>
                   <label className="block text-sm font-bold text-stone-700 mb-1">Fecha de Fin</label>
-                  <input type="date" className="w-full px-3 py-2 border rounded bg-stone-50" {...register('endDate', { required: true })} />
+                  <input type="date" className="w-full px-3 py-2 border rounded bg-stone-50 outline-none focus:ring-1 focus:ring-amber-800" {...register('endDate', { required: true })} />
                 </div>
               </div>
 
               <div className="mt-6 border-t border-stone-200 pt-4 flex justify-end gap-3">
-                <button type="button" onClick={closeModal} className="px-4 py-2 text-stone-600 font-bold hover:bg-stone-100 rounded">Cancelar</button>
-                <button type="submit" className="px-6 py-2 bg-amber-800 hover:bg-amber-900 text-white font-bold rounded shadow">
+                <button type="button" onClick={closeModal} className="px-4 py-2 text-stone-600 font-bold hover:bg-stone-100 rounded transition-colors">Cancelar</button>
+                <button type="submit" className="px-6 py-2 bg-amber-800 hover:bg-amber-900 text-white font-bold rounded shadow transition-colors">
                   {editingId ? 'Confirmar Modificaciones' : 'Emitir Orden de Campaña'}
                 </button>
               </div>

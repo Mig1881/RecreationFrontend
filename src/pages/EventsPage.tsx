@@ -23,11 +23,13 @@ export default function EventsPage() {
 
   const myAssociationIds = myMemberships.map(m => m.associationId);
 
+  // Identificamos si es el Mando Supremo
+  const isAdmin = user?.roles.some(role => ['ADMIN', 'ROLE_ADMIN'].includes(role));
+
   const isOfficer = user?.roles.some(role => 
     ['ADMIN', 'PRESIDENT', 'ROLE_ADMIN', 'ROLE_PRESIDENT'].includes(role)
   );
 
-  // EXTRAEMOS LA FUNCIÓN PARA PODER LLAMARLA CUANDO QUERAMOS
   const loadEventsAndAssociations = async () => {
     try {
       const [eventsData, assocsData] = await Promise.all([
@@ -54,7 +56,12 @@ export default function EventsPage() {
 
   const openAttendanceModal = (eventId: number) => {
     setAttendanceModalEventId(eventId);
-    setSelectedAssociationId(''); 
+    // Si no es Admin y solo tiene una asociación, se la preseleccionamos para mayor comodidad
+    if (!isAdmin && myAssociationIds.length > 0) {
+      setSelectedAssociationId(myAssociationIds[0].toString());
+    } else {
+      setSelectedAssociationId(''); 
+    }
     setFeedback(null);
   };
 
@@ -79,7 +86,7 @@ export default function EventsPage() {
       setFeedback({ type: 'success', text: 'Asociación adscrita correctamente a la campaña.' });
       closeAttendanceModal();
       
-      // 🔄 RECARGA AUTOMÁTICA: Volvemos a pedir los eventos al backend para que se ponga verde
+      // RECARGA AUTOMÁTICA
       await loadEventsAndAssociations();
       
     } catch (error: any) {
@@ -207,7 +214,10 @@ export default function EventsPage() {
                   required
                 >
                   <option value="" disabled>-- Selecciona un regimiento --</option>
-                  {associations.map(assoc => (
+                  {/* FILTRO DE SEGURIDAD */}
+                  {associations
+                    .filter(assoc => isAdmin ? true : myAssociationIds.includes(assoc.id!))
+                    .map(assoc => (
                     <option key={assoc.id} value={assoc.id}>{assoc.name}</option>
                   ))}
                 </select>

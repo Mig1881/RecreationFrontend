@@ -7,9 +7,14 @@ export default function Sidebar() {
   const navigate = useNavigate();
   const { user } = state;
 
-  // Verificamos los roles con y sin el prefijo 'ROLE_' de Spring Security
+  // Verificamos si es cualquier tipo de oficial
   const hasElevatedPrivileges = user?.roles.some(role => 
     ['ADMIN', 'PRESIDENT', 'ROLE_ADMIN', 'ROLE_PRESIDENT'].includes(role)
+  );
+
+  // Verificamos si es estrictamente el Mando Supremo (Admin)
+  const isAdmin = user?.roles.some(role => 
+    ['ADMIN', 'ROLE_ADMIN'].includes(role)
   );
 
   const handleLogout = () => {
@@ -17,7 +22,6 @@ export default function Sidebar() {
     navigate('/login', { replace: true });
   };
 
-  // Clases CSS reutilizables para los enlaces (Ley de Similitud)
   const navLinkClass = ({ isActive }: { isActive: boolean }) =>
     `block px-6 py-3 text-lg font-medium transition-colors ${
       isActive
@@ -46,7 +50,6 @@ export default function Sidebar() {
           Inicio
         </NavLink>
         
-        {/* Enlace complementario a la página de perfil */}
         <NavLink to="/profile" className={navLinkClass}>
           Mi Perfil
         </NavLink>
@@ -69,9 +72,14 @@ export default function Sidebar() {
             <NavLink to="/members" className={navLinkClass}>
               Recreadores
             </NavLink>
-            <NavLink to="/admin/associations" className={navLinkClass}>
-              Gestión de Asociaciones
-            </NavLink>
+
+            {/* RESTRICCIÓN VISUAL: Solo el Admin ve este botón */}
+            {isAdmin && (
+              <NavLink to="/admin/associations" className={navLinkClass}>
+                Gestión de Asociaciones
+              </NavLink>
+            )}
+
             <NavLink to="/admin/events/crud" className={navLinkClass}>
               Gestión de Campañas
             </NavLink>
