@@ -11,10 +11,8 @@ export default function AdminAssociationsPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
 
-  // Añadimos setValue y watch para controlar la imagen programáticamente
   const { register, handleSubmit, reset, setValue, watch } = useForm<Association>();
   
-  // Observamos el valor actual del logo para poder mostrar una vista previa
   const currentLogo = watch('logoBase64');
 
   const loadAssociations = async () => {
@@ -37,7 +35,7 @@ export default function AdminAssociationsPage() {
       reset(association);
     } else {
       setEditingId(null);
-      reset({ taxId: '', name: '', foundationYear: new Date().getFullYear(), allegiance: '', historicalAttire: '', logoBase64: '' });
+      reset({ taxId: '', name: '', city: '', foundationYear: new Date().getFullYear(), allegiance: '', historicalAttire: '', logoBase64: '' });
     }
     setIsModalOpen(true);
   };
@@ -47,11 +45,9 @@ export default function AdminAssociationsPage() {
     setEditingId(null);
   };
 
-  // Motor de conversión de Imagen a Base64
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      // Validar tamaño (ej. max 2MB) para no saturar el JSON
       if (file.size > 2 * 1024 * 1024) {
         alert("El escudo es demasiado pesado. El tamaño máximo es 2MB.");
         return;
@@ -59,10 +55,9 @@ export default function AdminAssociationsPage() {
       
       const reader = new FileReader();
       reader.onloadend = () => {
-        // Inyectamos el resultado (la cadena de texto Base64) en el formulario
         setValue('logoBase64', reader.result as string, { shouldDirty: true });
       };
-      reader.readAsDataURL(file); // Dispara la conversión
+      reader.readAsDataURL(file);
     }
   };
 
@@ -126,7 +121,6 @@ export default function AdminAssociationsPage() {
               associations.map((assoc, index) => (
               <tr key={assoc.id} className={index % 2 === 0 ? 'bg-white' : 'bg-stone-50'}>
                 <td className="px-6 py-4 flex items-center gap-3">
-                  {/* Pequeña previsualización en la tabla si existe el logo */}
                   {assoc.logoBase64 ? (
                     <img src={assoc.logoBase64} alt="Escudo" className="h-8 w-8 object-cover rounded-md border border-stone-200" />
                   ) : (
@@ -156,7 +150,6 @@ export default function AdminAssociationsPage() {
             
             <form onSubmit={handleSubmit(onSubmit)} className="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
               
-              {/* Zona de subida de escudo (Ley de Semejanza: agrupamos lo visual) */}
               <div className="flex flex-col sm:flex-row gap-6 items-center p-4 bg-stone-50 border border-stone-200 rounded-lg mb-4">
                 <div className="h-24 w-24 bg-white border-2 border-dashed border-stone-300 rounded-lg flex items-center justify-center overflow-hidden flex-shrink-0 relative group">
                   {currentLogo ? (
@@ -182,11 +175,33 @@ export default function AdminAssociationsPage() {
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="md:col-span-2"><label className="block text-sm font-bold text-stone-700 mb-1">Nombre Oficial</label><input type="text" className="w-full px-3 py-2 border rounded" {...register('name', { required: true })} /></div>
-                <div><label className="block text-sm font-bold text-stone-700 mb-1">CIF</label><input type="text" className="w-full px-3 py-2 border rounded" {...register('taxId', { required: true })} /></div>
-                <div><label className="block text-sm font-bold text-stone-700 mb-1">Año Fundación</label><input type="number" className="w-full px-3 py-2 border rounded" {...register('foundationYear', { valueAsNumber: true })} /></div>
-                <div><label className="block text-sm font-bold text-stone-700 mb-1">Bando Histórico</label><input type="text" placeholder="Ej: Ejército Francés" className="w-full px-3 py-2 border rounded" {...register('allegiance')} /></div>
-                <div className="md:col-span-2"><label className="block text-sm font-bold text-stone-700 mb-1">Descripción Uniforme</label><textarea rows={3} className="w-full px-3 py-2 border rounded" {...register('historicalAttire')} /></div>
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-bold text-stone-700 mb-1">Nombre Oficial</label>
+                  <input type="text" className="w-full px-3 py-2 border rounded" {...register('name', { required: true })} />
+                </div>
+                <div>
+                  <label className="block text-sm font-bold text-stone-700 mb-1">CIF</label>
+                  <input type="text" className="w-full px-3 py-2 border rounded" {...register('taxId', { required: true })} />
+                </div>
+                <div>
+                  <label className="block text-sm font-bold text-stone-700 mb-1">Año Fundación</label>
+                  <input type="number" className="w-full px-3 py-2 border rounded" {...register('foundationYear', { valueAsNumber: true })} />
+                </div>
+                <div>
+                  <label className="block text-sm font-bold text-stone-700 mb-1">Bando Histórico</label>
+                  <input type="text" placeholder="Ej: Ejército Francés" className="w-full px-3 py-2 border rounded" {...register('allegiance')} />
+                </div>
+                
+                {/* AÑADO EL INPUT DE LA CIUDAD SEDE EN EL FORMULARIO */}
+                <div>
+                  <label className="block text-sm font-bold text-stone-700 mb-1">Ciudad Sede</label>
+                  <input type="text" placeholder="Ej: Zaragoza" className="w-full px-3 py-2 border rounded" {...register('city')} />
+                </div>
+                
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-bold text-stone-700 mb-1">Descripción Uniforme</label>
+                  <textarea rows={3} className="w-full px-3 py-2 border rounded" {...register('historicalAttire')} />
+                </div>
               </div>
 
               <div className="mt-6 border-t pt-4 flex justify-end gap-3">

@@ -9,6 +9,7 @@ export interface EventParticipationDto {
   memberFullName?: string;
   carriedWeapon: string;
   weaponModel: string;
+  qrToken?: string;
 }
 
 export const participationsService = {
@@ -16,7 +17,10 @@ export const participationsService = {
     apiClient<EventParticipationDto>('/participations', { method: 'POST', data }),
     
   getByEvent: (eventId: number) => 
-    apiClient<EventParticipationDto[]>(`/participations/event/${eventId}`), // Ajusta esta ruta si en tu API es distinta
+    apiClient<EventParticipationDto[]>(`/participations/event/${eventId}`),
+    
+  getByMember: (memberId: number) => 
+    apiClient<EventParticipationDto[]>(`/participations/member/${memberId}`),
     
   remove: (participationId: number) => 
     apiClient<void>(`/participations/${participationId}`, { method: 'DELETE' }),

@@ -1,12 +1,12 @@
 // src/services/associations.service.ts
 import { apiClient } from '../api/apiClient';
 
-// Interfaz actualizada para coincidir al 100% con tu Base de Datos y DTOs
 export interface Association {
   id?: number;
   taxId: string; 
   foundationYear: number;
   name: string;
+  city?: string;
   allegiance: string; 
   historicalAttire: string; 
   logoBase64?: string; 

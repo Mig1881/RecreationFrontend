@@ -5,7 +5,7 @@ import { eventsService, type HistoricEvent } from '../services/events.service';
 import { associationsService, type Association } from '../services/associations.service';
 import { attendancesService, type EventAttendanceDto } from '../services/attendances.service';
 import { useAuth } from '../context/AuthContext';
-import { Calendar, MapPin, Building, LockOpen, Lock, ShieldPlus, X, CheckCircle } from 'lucide-react';
+import { Calendar, MapPin, Building, LockOpen, Lock, ShieldPlus, X, CheckCircle, Archive } from 'lucide-react';
 
 export default function EventsPage() {
   const { state } = useAuth();
@@ -23,7 +23,6 @@ export default function EventsPage() {
 
   const myAssociationIds = myMemberships.map(m => m.associationId);
 
-  // Identificamos si es el Mando Supremo
   const isAdmin = user?.roles.some(role => ['ADMIN', 'ROLE_ADMIN'].includes(role));
 
   const isOfficer = user?.roles.some(role => 
@@ -56,7 +55,6 @@ export default function EventsPage() {
 
   const openAttendanceModal = (eventId: number) => {
     setAttendanceModalEventId(eventId);
-    // Si no es Admin y solo tiene una asociación, se la preseleccionamos para mayor comodidad
     if (!isAdmin && myAssociationIds.length > 0) {
       setSelectedAssociationId(myAssociationIds[0].toString());
     } else {
@@ -85,10 +83,7 @@ export default function EventsPage() {
       await attendancesService.enroll(dto);
       setFeedback({ type: 'success', text: 'Asociación adscrita correctamente a la campaña.' });
       closeAttendanceModal();
-      
-      // RECARGA AUTOMÁTICA
       await loadEventsAndAssociations();
-      
     } catch (error: any) {
       setFeedback({ type: 'error', text: error.message || 'La asociación ya está inscrita o hubo un error.' });
     } finally {
@@ -121,17 +116,37 @@ export default function EventsPage() {
           {events.map((event) => {
             const isEnrolled = checkIsEnrolled(event);
 
+            // LÓGICA TEMPORAL PARA BLOQUEAR EVENTOS PASADOS
+            let isPast = false;
+            if (event.endDate) {
+              const endDate = new Date(event.endDate);
+              const today = new Date();
+              endDate.setHours(0, 0, 0, 0);
+              today.setHours(0, 0, 0, 0);
+              isPast = endDate < today;
+            }
+
             return (
-              <div key={event.id} className="bg-white rounded-xl shadow-sm border border-stone-200 overflow-hidden hover:shadow-md transition-shadow flex flex-col relative">
+              <div key={event.id} className={`bg-white rounded-xl shadow-sm border overflow-hidden flex flex-col relative transition-all ${isPast ? 'border-stone-200 opacity-80' : 'border-stone-200 hover:shadow-md'}`}>
                 
-                {isEnrolled && (
+                {/* Chapita para eventos activos */}
+                {isEnrolled && !isPast && (
                   <div className="absolute top-12 right-2 bg-green-100 text-green-800 border border-green-300 text-xs font-bold px-3 py-1 rounded-full flex items-center gap-1 shadow-sm z-10 animate-in zoom-in">
                     <CheckCircle className="h-4 w-4" />
                     Tropas Desplegadas
                   </div>
                 )}
 
-                <div className={`px-4 py-2 flex justify-between items-center text-xs font-bold uppercase tracking-wider text-white ${event.eventType === 'PUBLIC' ? 'bg-amber-800' : 'bg-stone-700'}`}>
+                {/* Chapita para eventos finalizados donde participaste */}
+                {isEnrolled && isPast && (
+                  <div className="absolute top-12 right-2 bg-stone-200 text-stone-600 border border-stone-300 text-xs font-bold px-3 py-1 rounded-full flex items-center gap-1 shadow-sm z-10 animate-in zoom-in">
+                    <CheckCircle className="h-4 w-4" />
+                    Participó
+                  </div>
+                )}
+
+                {/* Cabecera que se vuelve gris si ya pasó */}
+                <div className={`px-4 py-2 flex justify-between items-center text-xs font-bold uppercase tracking-wider text-white ${isPast ? 'bg-stone-500' : (event.eventType === 'PUBLIC' ? 'bg-amber-800' : 'bg-stone-700')}`}>
                   <span className="flex items-center gap-1">
                     {event.eventType === 'PUBLIC' ? <LockOpen className="h-3 w-3" /> : <Lock className="h-3 w-3" />}
                     {event.eventType === 'PUBLIC' ? 'Evento Público' : 'Maniobras Privadas'}
@@ -141,7 +156,7 @@ export default function EventsPage() {
 
                 <div className="p-5 flex-1 space-y-4">
                   <div>
-                    <h3 className="text-xl font-bold text-stone-900 mb-1 flex items-start gap-2">
+                    <h3 className={`text-xl font-bold mb-1 flex items-start gap-2 ${isPast ? 'text-stone-600' : 'text-stone-900'}`}>
                       <MapPin className="h-5 w-5 text-stone-400 mt-1 flex-shrink-0" />
                       <span>{event.city}, {event.country}</span>
                     </h3>
@@ -150,9 +165,9 @@ export default function EventsPage() {
                       Org: {event.organizingAssociationName || 'Comandancia General'}
                     </p>
                   </div>
-                  <div className="bg-stone-50 p-3 rounded border border-stone-100 flex items-start gap-3">
-                    <Calendar className="h-5 w-5 text-amber-800 mt-0.5" />
-                    <div className="text-sm text-stone-700">
+                  <div className={`p-3 rounded border flex items-start gap-3 ${isPast ? 'bg-stone-100 border-stone-200' : 'bg-stone-50 border-stone-100'}`}>
+                    <Calendar className={`h-5 w-5 mt-0.5 ${isPast ? 'text-stone-400' : 'text-amber-800'}`} />
+                    <div className={`text-sm ${isPast ? 'text-stone-500' : 'text-stone-700'}`}>
                       <p><span className="font-bold">Inicio:</span> {new Date(event.startDate).toLocaleDateString()}</p>
                       <p><span className="font-bold">Fin:</span> {new Date(event.endDate).toLocaleDateString()}</p>
                     </div>
@@ -160,7 +175,14 @@ export default function EventsPage() {
                 </div>
 
                 <div className="p-4 border-t border-stone-100 bg-stone-50 flex flex-col gap-3 min-h-[4rem]">
-                  {isOfficer ? (
+                  {/* SI ES PASADO, BLOQUEO ABSOLUTO PARA TODOS LOS ROLES */}
+                  {isPast ? (
+                     <div className="w-full py-2 bg-stone-200 text-stone-500 font-bold rounded flex items-center justify-center gap-2 border border-stone-300 cursor-not-allowed">
+                       <Archive className="h-5 w-5" />
+                       Campaña Finalizada
+                     </div>
+                  ) : isOfficer ? (
+                    // Botones normales si el evento está activo y eres oficial
                     <>
                       <button 
                         onClick={() => openAttendanceModal(event.id!)}
@@ -181,6 +203,7 @@ export default function EventsPage() {
                       </button>
                     </>
                   ) : (
+                    // Texto para recreadores en eventos activos
                     <p className="text-sm text-stone-500 italic text-center py-2">
                       Contacta con la presidencia de tu asociación para solicitar el alistamiento a esta campaña.
                     </p>
@@ -214,7 +237,6 @@ export default function EventsPage() {
                   required
                 >
                   <option value="" disabled>-- Selecciona un regimiento --</option>
-                  {/* FILTRO DE SEGURIDAD */}
                   {associations
                     .filter(assoc => isAdmin ? true : myAssociationIds.includes(assoc.id!))
                     .map(assoc => (

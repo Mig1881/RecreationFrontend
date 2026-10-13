@@ -83,7 +83,9 @@ export default function AssociationsPage() {
                 <div className="space-y-3">
                   <div className="flex items-start gap-2 text-sm text-stone-600">
                     <MapPin className="h-4 w-4 text-amber-800 mt-0.5 flex-shrink-0" />
-                    <span>Sede registrada en comandancia</span>
+                    <span className="font-medium text-stone-800">
+                      {assoc.city ? `Sede en ${assoc.city}` : 'Sede central operativa'}
+                    </span>
                   </div>
                   {assoc.allegiance && (
                     <div className="flex items-center gap-2 text-sm text-stone-600">
