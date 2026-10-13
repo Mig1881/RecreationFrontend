@@ -28,7 +28,19 @@ export default function RegisterPage() {
       }, 3000);
 
     } catch (error: any) {
-      setApiError(error.message || 'Error al registrar el usuario. Revisa los datos.');
+      const errorMessage = error.message?.toLowerCase() || "";
+      const isConflict = errorMessage.includes('campo único') || 
+                         errorMessage.includes('ya exista') || 
+                         errorMessage.includes('integridad de datos');
+
+      if (isConflict) {
+        setApiError(
+          'Tus datos (DNI o Correo) ya constan en los archivos del Cuartel General. ' +
+          'Por favor, contacta con el Presidente de tu asociación para que tramite tu adscripción a su regimiento.'
+        );
+      } else {
+        setApiError(error.message || 'Fallo de comunicaciones en el Cuartel General. Revisa los datos e inténtalo de nuevo.');
+      }
     } finally {
       setIsLoading(false);
     }

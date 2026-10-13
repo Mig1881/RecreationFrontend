@@ -17,6 +17,7 @@ import EventManagePage from './pages/admin/EventManagePage';
 import AdminAssociationsPage from './pages/admin/AdminAssociationsPage';
 import AdminEventsPage from './pages/admin/AdminEventsPage';
 import MyDeploymentsPage from './pages/MyDeploymentsPage';
+import DashboardPage from './pages/DashboardPage';
 import RequireRole from './auth/RequireRole';
 
 export default function App() {
@@ -42,6 +43,7 @@ export default function App() {
             <Route path="profile" element={<ProfilePage />} />
             <Route path="associations" element={<AssociationsPage />} />
             <Route path="my-deployments" element={<MyDeploymentsPage />} />
+            <Route path="dashboard" element={<DashboardPage />} />
             
             <Route path="members" 
               element={
