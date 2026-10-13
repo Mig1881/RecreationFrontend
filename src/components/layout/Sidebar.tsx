@@ -12,7 +12,6 @@ export default function Sidebar() {
     ['ADMIN', 'PRESIDENT', 'ROLE_ADMIN', 'ROLE_PRESIDENT'].includes(role)
   );
 
-  // Verificamos si es estrictamente el Mando Supremo (Admin)
   const isAdmin = user?.roles.some(role => 
     ['ADMIN', 'ROLE_ADMIN'].includes(role)
   );
@@ -54,6 +53,10 @@ export default function Sidebar() {
           Mi Perfil
         </NavLink>
 
+        <NavLink to="/my-deployments" className={navLinkClass}>
+          Mis Despliegues
+        </NavLink>
+
         <NavLink to="/associations" className={navLinkClass}>
           Asociaciones
         </NavLink>
@@ -73,7 +76,7 @@ export default function Sidebar() {
               Recreadores
             </NavLink>
 
-            {/* RESTRICCIÓN VISUAL: Solo el Admin ve este botón */}
+            {/* Solo el Admin ve este botón */}
             {isAdmin && (
               <NavLink to="/admin/associations" className={navLinkClass}>
                 Gestión de Asociaciones

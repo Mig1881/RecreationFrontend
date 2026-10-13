@@ -14,8 +14,9 @@ import ProfilePage from './pages/ProfilePage';
 import AssociationsPage from './pages/AssociationsPage';
 import WeaponsExportPage from './pages/admin/WeaponsExportPage';
 import EventManagePage from './pages/admin/EventManagePage';
-import AdminAssociationsPage from './pages/admin/AdminAssociationsPage'; // NUEVO
-import AdminEventsPage from './pages/admin/AdminEventsPage'; // NUEVO
+import AdminAssociationsPage from './pages/admin/AdminAssociationsPage';
+import AdminEventsPage from './pages/admin/AdminEventsPage';
+import MyDeploymentsPage from './pages/MyDeploymentsPage';
 import RequireRole from './auth/RequireRole';
 
 export default function App() {
@@ -40,6 +41,7 @@ export default function App() {
             <Route path="events" element={<EventsPage />} />
             <Route path="profile" element={<ProfilePage />} />
             <Route path="associations" element={<AssociationsPage />} />
+            <Route path="my-deployments" element={<MyDeploymentsPage />} />
             
             <Route path="members" 
               element={
