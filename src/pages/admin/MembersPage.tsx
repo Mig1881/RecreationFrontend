@@ -4,8 +4,8 @@ import RecruitModal from '../../components/members/RecruitModal';
 import { membersService, type Member } from '../../services/members.service';
 import { membershipsService, type MembershipOutDto } from '../../services/memberships.service';
 import { useAuth } from '../../context/AuthContext';
-import { apiClient } from '../../api/apiClient'; // 🔥 IMPORTAMOS EL CLIENTE API PARA LAS ASOCIACIONES
-import { Search, ChevronLeft, ChevronRight, UserCog, UserMinus, ShieldAlert, Archive, UserPlus } from 'lucide-react';
+import { apiClient } from '../../api/apiClient';
+import { Search, ChevronLeft, ChevronRight, UserCog, UserMinus, ShieldAlert, UserPlus, RefreshCcw } from 'lucide-react';
 import ProfileModal from '../../components/layout/ProfileModal';
 
 interface TableMember extends Member {
@@ -23,11 +23,10 @@ export default function MembersPage() {
   const managedAssociationIds = myMemberships.map(m => m.associationId);
 
   const [members, setMembers] = useState<TableMember[]>([]);
-  const [adminAssociations, setAdminAssociations] = useState<any[]>([]); // 🔥 NUEVO ESTADO PARA CARGAR ASOCIACIONES
+  const [adminAssociations, setAdminAssociations] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [apiError, setApiError] = useState<string | null>(null);
   
-  // Estados de Búsqueda, Filtrado y Selección de Admin
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState<'ACTIVE' | 'RESERVE' | 'ALL'>('ACTIVE');
   const [selectedAdminAssociation, setSelectedAdminAssociation] = useState<string>('ALL');
@@ -39,12 +38,11 @@ export default function MembersPage() {
   const [selectedMember, setSelectedMember] = useState<Member | null>(null);
   const [isRecruitModalOpen, setIsRecruitModalOpen] = useState(false);
 
-  // Cargar asociaciones para el Admin
   useEffect(() => {
     const fetchAssociations = async () => {
       if (isAdmin) {
         try {
-          const data = await apiClient<any[]>('/associations'); // Ajusta la ruta si es distinta en tu backend
+          const data = await apiClient<any[]>('/associations');
           setAdminAssociations(data);
         } catch (error) {
           console.error("Error al cargar asociaciones para el desplegable del admin:", error);
@@ -99,7 +97,6 @@ export default function MembersPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAdmin, isPresident]);
 
-  // Aplicación combinada del buscador y el selector de estados
   const filteredMembers = members.filter(member => {
     const matchesSearch = `${member.firstName} ${member.lastName}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
                           member.nationalId.toLowerCase().includes(searchTerm.toLowerCase());
@@ -108,12 +105,6 @@ export default function MembersPage() {
     
     if (filterStatus === 'ACTIVE' && isLicenciado) return false;
     if (filterStatus === 'RESERVE' && !isLicenciado) return false;
-    
-    // FILTRO PARA EL ADMIN: Mostrar solo los miembros de la asociación seleccionada
-    // Nota: Como el getAll() del admin trae la entidad Member pura (no el MembershipOutDto),
-    // y la entidad Member en tu backend NO parece tener la id de la asociación, 
-    // el filtro por asociación visual en la tabla para el admin es complejo sin tocar el backend.
-    // Por ahora, dejamos que el admin vea A TODOS en la tabla, y use el select SOLO para alistar.
     
     return matchesSearch;
   });
@@ -124,16 +115,34 @@ export default function MembersPage() {
 
   const handleLicenciar = async (member: TableMember) => {
     if (!member.membershipId) {
-      alert("Error: No se ha detectado el ID de adscripción. Contacte con el administrador.");
+      alert("Error: No se ha detectado el ID de adscripción.");
       return;
     }
 
-    if (window.confirm(`¿Estás seguro de que deseas licenciar (dar de baja) al recreador ${member.firstName} ${member.lastName}? Su historial se mantendrá en los archivos.`)) {
+    if (window.confirm(`¿Estás seguro de que deseas licenciar (dar de baja) al recreador ${member.firstName} ${member.lastName}? Su historial se mantendrá en los archivos de tu asociación.`)) {
       try {
         await membershipsService.licenciar(member.membershipId);
         await fetchMembers();
       } catch (error: any) {
         setApiError(error.message || "Error de comunicación con el Alto Mando al tramitar la licencia.");
+      }
+    }
+  };
+
+  // 🔥 NUEVA FUNCIÓN: Llamar a filas (Reactivar) 🔥
+  const handleReactivar = async (member: TableMember) => {
+    if (!member.membershipId) {
+      alert("Error: No se ha detectado el ID de adscripción.");
+      return;
+    }
+
+    if (window.confirm(`¿Deseas volver a llamar a filas a ${member.firstName} ${member.lastName}? Volverá a estar en servicio activo en tu regimiento.`)) {
+      try {
+        // Llamamos al nuevo método del servicio que crearemos en el paso 2
+        await membershipsService.reactivar(member.membershipId);
+        await fetchMembers();
+      } catch (error: any) {
+        setApiError(error.message || "Error de comunicación con el Alto Mando al tramitar la reactivación.");
       }
     }
   };
@@ -195,7 +204,6 @@ export default function MembersPage() {
               className="block w-full lg:w-[400px] pl-3 pr-10 py-2 border border-stone-300 rounded-md bg-stone-50 text-sm focus:outline-none focus:ring-1 focus:ring-amber-800 focus:border-amber-800"
             >
               <option value="ALL">Todas las asociaciones (Selecciona una para alistar...)</option>
-              {/* 🔥 AHORA EL SELECTOR SE LLENA DINÁMICAMENTE */}
               {adminAssociations.map((assoc: any) => (
                 <option key={assoc.id} value={assoc.id}>
                   {assoc.name || `Asociación #${assoc.id}`}
@@ -204,7 +212,6 @@ export default function MembersPage() {
             </select>
           )}
 
-          {/* Selector de Estados */}
           <div className="flex bg-stone-100 p-1 rounded-md border border-stone-200 w-full lg:w-[400px]">
             <button 
               onClick={() => { setFilterStatus('ACTIVE'); setCurrentPage(1); }}
@@ -307,6 +314,7 @@ export default function MembersPage() {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                         <div className="flex items-center justify-end gap-3">
+                          
                           <button 
                             onClick={() => {
                               setSelectedMember(member);
@@ -318,21 +326,27 @@ export default function MembersPage() {
                             <UserCog className="h-5 w-5" />
                           </button>
                           
-                          {(isPresident || isAdmin) && (
+                          {/* Botón LICENCIAR (Activos) o REACTIVAR (Reserva) */}
+                          {(isPresident && member.membershipId) && (
                             isLicenciado ? (
-                              <span title="Archivado en la reserva" className="flex items-center justify-center">
-                                <Archive className="h-5 w-5 text-stone-300" />
-                              </span>
+                              <button 
+                                onClick={() => handleReactivar(member)}
+                                className="text-amber-600 hover:text-green-600 transition-colors"
+                                title="Llamar a filas (Reactivar al recreador)"
+                              >
+                                <RefreshCcw className="h-5 w-5" />
+                              </button>
                             ) : (
                               <button 
                                 onClick={() => handleLicenciar(member)}
                                 className="text-stone-400 hover:text-red-600 transition-colors"
-                                title="Licenciar / Dar de baja"
+                                title="Licenciar / Dar de baja del Regimiento"
                               >
                                 <UserMinus className="h-5 w-5" />
                               </button>
                             )
                           )}
+
                         </div>
                       </td>
                     </tr>
