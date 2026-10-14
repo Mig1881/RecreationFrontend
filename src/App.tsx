@@ -3,7 +3,6 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 
 import LoginPage from './pages/LoginPage';
-import RegisterPage from './pages/RegisterPage';
 import HomePage from './pages/HomePage';
 
 import RequireAuth from './auth/RequireAuth';
@@ -27,7 +26,6 @@ export default function App() {
         <Routes>
           {/* Rutas Públicas */}
           <Route path="/login" element={<LoginPage />} />
-          <Route path="/register" element={<RegisterPage />} />
           
           {/* Rutas Privadas (Protegidas por Layout y RequireAuth) */}
           <Route 

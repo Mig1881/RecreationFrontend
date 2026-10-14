@@ -30,11 +30,16 @@ export const membershipsService = {
   // Pide al backend la lista de regimientos a los que pertenece el usuario actual
   getMyMemberships: () => 
     apiClient<MembershipOutDto[]>('/members/me/memberships'),
-  //Obtener la lista de tropas de un regimiento concreto
+  
+  // Obtener la lista de tropas de un regimiento concreto
   getByAssociation: (associationId: number) => 
     apiClient<MembershipOutDto[]>(`/associations/${associationId}/memberships`),
 
   // Ejecutar la baja lógica (poner endDate a la fecha de hoy)
   licenciar: (membershipId: number) => 
-    apiClient<void>(`/memberships/${membershipId}`, { method: 'DELETE' }),
+    apiClient<void>(`/memberships/${membershipId}/discharge`, { method: 'PUT' }),
+
+  // Llamar a filas (quitar la fecha de baja para reactivar al recreador)
+  reactivar: (membershipId: number) =>
+    apiClient<void>(`/memberships/${membershipId}/reactivate`, { method: 'PUT' }),
 };
