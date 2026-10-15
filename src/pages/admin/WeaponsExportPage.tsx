@@ -18,21 +18,16 @@ export default function WeaponsExportPage() {
   const isAdmin = user?.roles.some(role => ['ADMIN', 'ROLE_ADMIN'].includes(role));
   const managedAssociationIds = myMemberships.map(m => m.associationId);
 
-  // 1. Cargar la lista de eventos disponibles al entrar a la página
+  // 1. Cargar la lista de eventos
   useEffect(() => {
     const fetchEvents = async () => {
       try {
         const data = await apiClient<any[]>('/events');
         
-        // 🔥 FILTRO DE SEGURIDAD ACTUALIZADO 🔥
-        // Dejamos pasar la campaña si eres Admin, si la organizas, o si estás apuntado.
+        // Solo puedes exportar si eres Admin o si eres el ORGANIZADOR del evento.
         const allowedEvents = isAdmin 
           ? data 
-          : data.filter(event => {
-              const isOrganizer = managedAssociationIds.includes(event.organizingAssociationId);
-              const isAttendant = event.attendingAssociationIds?.some((id: number) => managedAssociationIds.includes(id));
-              return isOrganizer || isAttendant;
-            });
+          : data.filter(event => managedAssociationIds.includes(event.organizingAssociationId));
 
         setEvents(allowedEvents);
         
@@ -47,7 +42,7 @@ export default function WeaponsExportPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAdmin]);
 
-  // 2. Cargar los tiradores cada vez que el usuario cambia el evento en el desplegable
+  // 2. Cargar TODAS las armas del evento seleccionado
   useEffect(() => {
     if (!selectedEventId) return;
     
@@ -55,19 +50,11 @@ export default function WeaponsExportPage() {
       setIsLoading(true);
       setApiError(null);
       try {
-        // Usamos tu servicio de participaciones para traer solo a los inscritos
         const data = await participationsService.getByEvent(Number(selectedEventId));
         
-        // Filtramos para mostrar en la tabla solo a los que han registrado un arma para este evento
-        // Y si NO eres admin, filtramos para mostrar SOLO a los tiradores de TU asociación
-        const myArmed = data.filter(p => {
-           const hasWeapon = p.carriedWeapon && p.carriedWeapon.trim() !== '';
-           // Asumiendo que el backend te envía a todos, limitamos la vista a tu gente
-           // Nota: Si el backend ya filtra, esta segunda validación es un extra de seguridad.
-           return hasWeapon; 
-        });
+        const armed = data.filter(p => p.carriedWeapon && p.carriedWeapon.trim() !== '' && p.carriedWeapon !== 'Ninguna');
 
-        setParticipations(myArmed);
+        setParticipations(armed);
       } catch (error: any) {
         setApiError('Error al obtener el censo de armamento para este evento.');
       } finally {
@@ -78,7 +65,7 @@ export default function WeaponsExportPage() {
     fetchArmedTroops();
   }, [selectedEventId]);
 
-  // 3. Conexión nativa para descargar el CSV generado por Spring Boot
+  // 3. Conexión nativa para descargar el CSV
   const handleDownloadCSV = async () => {
     if (!selectedEventId) return;
     
@@ -94,7 +81,8 @@ export default function WeaponsExportPage() {
       });
 
       if (!response.ok) {
-        throw new Error('El Alto Mando denegó la exportación o el archivo no existe.');
+        // Capturamos el error 403 que ahora lanza tu backend de Spring Boot
+        throw new Error('El Alto Mando denegó la exportación. No tienes autoridad sobre esta campaña.');
       }
 
       const blob = await response.blob();
@@ -114,7 +102,6 @@ export default function WeaponsExportPage() {
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
       
-      {/* Cabecera */}
       <div className="flex flex-col md:flex-row md:items-start justify-between gap-6 border-b border-stone-200 pb-6">
         <div>
           <h1 className="text-3xl font-bold text-amber-900 inline-flex items-center gap-3">
@@ -122,7 +109,7 @@ export default function WeaponsExportPage() {
             Intervención de Armas
           </h1>
           <p className="text-stone-500 mt-2">
-            Control de licencias y exportación del censo para autoridades competentes, segmentado por maniobra.
+            Control de licencias y exportación del censo global para autoridades competentes.
           </p>
         </div>
         
@@ -136,7 +123,6 @@ export default function WeaponsExportPage() {
         </button>
       </div>
 
-      {/* Selector de Maniobras / Eventos */}
       <div className="bg-stone-50 p-4 rounded-lg border border-stone-200 flex flex-col md:flex-row items-center gap-4">
         <label className="font-bold text-stone-700 whitespace-nowrap">
           Seleccionar Campaña:
@@ -147,7 +133,7 @@ export default function WeaponsExportPage() {
           className="block w-full md:w-[400px] pl-3 pr-10 py-2.5 border border-stone-300 rounded-md bg-white text-sm focus:outline-none focus:ring-2 focus:ring-amber-800"
         >
           {events.length === 0 ? (
-            <option value="">No hay campañas planificadas en tu jurisdicción</option>
+            <option value="">No hay campañas bajo tu organización</option>
           ) : (
             events.map(event => (
               <option key={event.id} value={event.id}>
@@ -164,13 +150,11 @@ export default function WeaponsExportPage() {
         </div>
       )}
 
-      {/* Contenedor de la Tabla */}
       <div className="bg-white shadow-sm rounded-lg border border-stone-200 overflow-hidden">
-        
         <div className="bg-stone-100 px-6 py-4 border-b border-stone-200 flex items-center justify-between">
           <div className="flex items-center gap-2 text-stone-800 font-bold">
             <FileText className="h-5 w-5 text-stone-500" />
-            Dotación Armada para la Campaña Seleccionada
+            Dotación Armada Global para la Campaña Seleccionada
           </div>
           <span className="bg-amber-200 text-amber-900 py-1 px-3 rounded-full text-xs font-bold shadow-sm">
             {participations.length} tiradores inscritos
@@ -190,7 +174,7 @@ export default function WeaponsExportPage() {
               {isLoading ? (
                 <tr>
                   <td colSpan={3} className="px-6 py-8 text-center text-stone-500 font-medium">
-                    Consultando archivos de la armería para este evento...
+                    Consultando archivos de la armería global...
                   </td>
                 </tr>
               ) : participations.length > 0 ? (

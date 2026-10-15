@@ -19,9 +19,9 @@ export default function DashboardPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [stats, setStats] = useState<any>({});
 
-  // ESTADOS PARA LA TABLA MASTER-DETAIL DEL ADMIN 
-  const [adminEvents, setAdminEvents] = useState<HistoricEvent[]>([]);
-  const [adminAssociations, setAdminAssociations] = useState<Association[]>([]);
+  // ESTADOS PARA LA TABLA MASTER-DETAIL (COMPARTIDA ADMIN/PRESIDENT) 
+  const [tableEvents, setTableEvents] = useState<HistoricEvent[]>([]);
+  const [systemAssociations, setSystemAssociations] = useState<Association[]>([]);
   const [expandedEventId, setExpandedEventId] = useState<number | null>(null);
   const [expandedTroops, setExpandedTroops] = useState<EventParticipationDto[]>([]);
   const [isLoadingTroops, setIsLoadingTroops] = useState(false);
@@ -51,19 +51,32 @@ export default function DashboardPage() {
             ratioEvents: `${publicEvents} Púb. / ${privateEvents} Priv.`
           });
 
-          // Guardamos eventos y asociaciones para la tabla detallada
-          setAdminEvents(events);
-          setAdminAssociations(assocs);
+          // Cargamos todos los eventos y asociaciones para el visor
+          setTableEvents(events);
+          setSystemAssociations(assocs);
 
         } else if (isPresident) {
           // 📊 ESTADÍSTICAS DEL PRESIDENTE DE REGIMIENTO
-          const events = await eventsService.getAll();
+          const [events, assocs] = await Promise.all([
+            eventsService.getAll(),
+            associationsService.getAll()
+          ]);
           
+          setSystemAssociations(assocs);
+
+          // Calculamos eventos propios para las métricas (organizados o adscritos)
           const myEvents = events.filter(e => 
             managedAssociationIds.includes(e.organizingAssociationId!) || 
             e.attendingAssociationIds?.some(id => managedAssociationIds.includes(id))
           );
 
+          // EVENTOS PARA LA TABLA: Solo los que organiza como anfitrión 
+          const organizedEvents = events.filter(e => 
+            managedAssociationIds.includes(e.organizingAssociationId!)
+          );
+          setTableEvents(organizedEvents);
+
+          // Obtenemos todas las tropas de las asociaciones que preside
           const troopsPromises = managedAssociationIds.map(id => membershipsService.getByAssociation(id));
           const troopsArrays = await Promise.all(troopsPromises);
           const allTroops = troopsArrays.flat();
@@ -138,9 +151,8 @@ export default function DashboardPage() {
     }
   };
 
-  // Función auxiliar para buscar nombres de asociaciones
   const getAssocName = (id: number) => {
-    return adminAssociations.find(a => a.id === id)?.name || `Asoc #${id}`;
+    return systemAssociations.find(a => a.id === id)?.name || `Asoc #${id}`;
   };
 
   if (isLoading) return <div className="p-12 text-center text-stone-500">Recopilando inteligencia militar...</div>;
@@ -172,7 +184,6 @@ export default function DashboardPage() {
         </p>
       </div>
 
-      {/* Bloque 1: Widgets 2x2 */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {isAdmin && (
           <>
@@ -202,14 +213,20 @@ export default function DashboardPage() {
         )}
       </div>
 
-      {/* Bloque 2: Master-Detail Exclusivo para el Admin */}
-      {isAdmin && (
+      {/* Bloque 2: Master-Detail Exclusivo para el Admin y Presidentes */}
+      {(isAdmin || isPresident) && (
         <div className="mt-10">
           <div className="flex items-center gap-2 mb-4">
             <ShieldAlert className="h-6 w-6 text-amber-800" />
-            <h2 className="text-2xl font-bold text-stone-800">Visor Estratégico de Movilizaciones</h2>
+            <h2 className="text-2xl font-bold text-stone-800">
+              {isAdmin ? 'Visor Estratégico de Movilizaciones' : 'Visor Táctico de tus Campañas'}
+            </h2>
           </div>
-          <p className="text-stone-500 mb-6">Despliega cualquier campaña para auditar las unidades y asociaciones adscritas.</p>
+          <p className="text-stone-500 mb-6">
+            {isAdmin 
+              ? 'Despliega cualquier campaña para auditar las unidades y asociaciones adscritas.' 
+              : 'Audita las operaciones donde tu regimiento actúa como anfitrión organizador.'}
+          </p>
 
           <div className="bg-white shadow-md rounded-xl border border-stone-200 overflow-hidden">
             <div className="overflow-x-auto">
@@ -223,12 +240,14 @@ export default function DashboardPage() {
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-stone-200">
-                  {adminEvents.length === 0 ? (
+                  {tableEvents.length === 0 ? (
                     <tr>
-                      <td colSpan={4} className="px-6 py-8 text-center text-stone-500">No hay operaciones registradas.</td>
+                      <td colSpan={4} className="px-6 py-8 text-center text-stone-500">
+                        {isAdmin ? 'No hay operaciones registradas.' : 'Tu regimiento no organiza ninguna campaña actualmente.'}
+                      </td>
                     </tr>
                   ) : (
-                    adminEvents.map((event) => (
+                    tableEvents.map((event) => (
                       <React.Fragment key={event.id}>
                         {/* FILA MAESTRA (Master) */}
                         <tr 
@@ -268,7 +287,7 @@ export default function DashboardPage() {
                           </td>
                         </tr>
 
-                        {/* FILA DETALLE (Detail) - Se muestra solo si está expandida */}
+                        {/* FILA DETALLE (Detail) */}
                         {expandedEventId === event.id && (
                           <tr className="bg-stone-50 border-b-2 border-stone-300">
                             <td colSpan={4} className="px-6 py-6">
