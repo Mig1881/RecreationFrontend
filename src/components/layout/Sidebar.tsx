@@ -1,13 +1,13 @@
 // src/components/layout/Sidebar.tsx
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { BarChart3 } from 'lucide-react'; 
 
 export default function Sidebar() {
   const { state, dispatch } = useAuth();
   const navigate = useNavigate();
   const { user } = state;
 
-  // Verificamos si es cualquier tipo de oficial
   const hasElevatedPrivileges = user?.roles.some(role => 
     ['ADMIN', 'PRESIDENT', 'ROLE_ADMIN', 'ROLE_PRESIDENT'].includes(role)
   );
@@ -30,7 +30,6 @@ export default function Sidebar() {
 
   return (
     <aside className="w-72 bg-stone-100 border-r border-stone-200 flex flex-col min-h-screen">
-      {/* Cabecera del Sidebar */}
       <div className="p-6 border-b border-stone-200">
         <h2 
           className="text-2xl text-amber-900 text-center" 
@@ -43,19 +42,28 @@ export default function Sidebar() {
         </p>
       </div>
 
-      {/* Navegación Principal */}
       <nav className="flex-1 py-6 space-y-1">
         <NavLink to="/" className={navLinkClass} end>
           Inicio
+        </NavLink>
+        
+        <NavLink to="/dashboard" className={navLinkClass}>
+          <span className="flex items-center gap-2">
+            <BarChart3 className="h-5 w-5" />
+            Estadísticas
+          </span>
         </NavLink>
         
         <NavLink to="/profile" className={navLinkClass}>
           Mi Perfil
         </NavLink>
 
-        <NavLink to="/my-deployments" className={navLinkClass}>
-          Mis Despliegues
-        </NavLink>
+        {/* 🔥 LÓGICA DE NEGOCIO: Ocultamos "Mis Despliegues" si el usuario es Admin 🔥 */}
+        {!isAdmin && (
+          <NavLink to="/my-deployments" className={navLinkClass}>
+            Mis Despliegues
+          </NavLink>
+        )}
 
         <NavLink to="/associations" className={navLinkClass}>
           Asociaciones
@@ -65,8 +73,6 @@ export default function Sidebar() {
           Campañas y Eventos
         </NavLink>
 
-
-        {/* Zona exclusiva para Oficiales (Admin/President) */}
         {hasElevatedPrivileges && (
           <div className="pt-6 mt-6 border-t border-stone-200">
             <p className="px-6 text-xs font-bold text-stone-400 uppercase tracking-wider mb-2">
@@ -76,7 +82,6 @@ export default function Sidebar() {
               Recreadores
             </NavLink>
 
-            {/* Solo el Admin ve este botón */}
             {isAdmin && (
               <NavLink to="/admin/associations" className={navLinkClass}>
                 Gestión de Asociaciones
@@ -93,7 +98,6 @@ export default function Sidebar() {
         )}
       </nav>
 
-      {/* Botón de Salida */}
       <div className="p-4 border-t border-stone-200">
         <button
           onClick={handleLogout}
