@@ -1,0 +1,11 @@
+version: '3.8'
+
+services:
+  mando-central-frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: mando-central-frontend-preprod
+    ports:
+      - "80:80" # Mapea el puerto 80 de tu PC al 80 del contenedor Nginx
+    restart: unless-stopped
