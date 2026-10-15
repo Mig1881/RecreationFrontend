@@ -1,15 +1,15 @@
 // src/pages/DashboardPage.tsx
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { eventsService } from '../services/events.service';
-import { associationsService } from '../services/associations.service';
-import { participationsService } from '../services/participations.service';
+import { eventsService, type HistoricEvent } from '../services/events.service';
+import { associationsService, type Association } from '../services/associations.service';
+import { participationsService, type EventParticipationDto } from '../services/participations.service';
 import { membershipsService } from '../services/memberships.service';
 import { membersService } from '../services/members.service';
 import { 
   BarChart3, Users, MapPin, Crosshair, 
   ShieldAlert, Building, Swords, CalendarCheck,
-  TrendingUp, Award
+  TrendingUp, Award, ChevronDown, ChevronUp, FileText
 } from 'lucide-react';
 
 export default function DashboardPage() {
@@ -18,6 +18,13 @@ export default function DashboardPage() {
   
   const [isLoading, setIsLoading] = useState(true);
   const [stats, setStats] = useState<any>({});
+
+  // ESTADOS PARA LA TABLA MASTER-DETAIL DEL ADMIN 
+  const [adminEvents, setAdminEvents] = useState<HistoricEvent[]>([]);
+  const [adminAssociations, setAdminAssociations] = useState<Association[]>([]);
+  const [expandedEventId, setExpandedEventId] = useState<number | null>(null);
+  const [expandedTroops, setExpandedTroops] = useState<EventParticipationDto[]>([]);
+  const [isLoadingTroops, setIsLoadingTroops] = useState(false);
 
   const isAdmin = user?.roles.some(role => ['ADMIN', 'ROLE_ADMIN'].includes(role));
   const isPresident = user?.roles.some(role => ['PRESIDENT', 'ROLE_PRESIDENT'].includes(role));
@@ -44,17 +51,19 @@ export default function DashboardPage() {
             ratioEvents: `${publicEvents} Púb. / ${privateEvents} Priv.`
           });
 
+          // Guardamos eventos y asociaciones para la tabla detallada
+          setAdminEvents(events);
+          setAdminAssociations(assocs);
+
         } else if (isPresident) {
           // 📊 ESTADÍSTICAS DEL PRESIDENTE DE REGIMIENTO
           const events = await eventsService.getAll();
           
-          // Calculamos eventos propios (organizados o adscritos)
           const myEvents = events.filter(e => 
             managedAssociationIds.includes(e.organizingAssociationId!) || 
             e.attendingAssociationIds?.some(id => managedAssociationIds.includes(id))
           );
 
-          // Obtenemos todas las tropas de las asociaciones que preside
           const troopsPromises = managedAssociationIds.map(id => membershipsService.getByAssociation(id));
           const troopsArrays = await Promise.all(troopsPromises);
           const allTroops = troopsArrays.flat();
@@ -66,7 +75,7 @@ export default function DashboardPage() {
             activeTroops,
             armedTroops,
             totalEvents: myEvents.length,
-            veterans: allTroops.length - activeTroops // Los que tienen endDate (baja)
+            veterans: allTroops.length - activeTroops
           });
 
         } else {
@@ -76,10 +85,8 @@ export default function DashboardPage() {
             eventsService.getAll()
           ]);
 
-          // Tipos de armas únicas que ha usado
           const uniqueWeapons = new Set(myParts.filter(p => p.carriedWeapon && p.carriedWeapon !== 'Ninguna').map(p => p.carriedWeapon)).size;
           
-          // Buscar el próximo evento
           const today = new Date();
           today.setHours(0,0,0,0);
           
@@ -111,9 +118,33 @@ export default function DashboardPage() {
     fetchStats();
   }, [isAdmin, isPresident, user, managedAssociationIds]);
 
+  // LÓGICA LAZY LOADING: Cargar tropas solo al expandir un evento
+  const toggleEventExpand = async (eventId: number) => {
+    if (expandedEventId === eventId) {
+      setExpandedEventId(null);
+      return;
+    }
+    
+    setExpandedEventId(eventId);
+    setIsLoadingTroops(true);
+    try {
+      const troops = await participationsService.getByEvent(eventId);
+      setExpandedTroops(troops);
+    } catch (error) {
+      console.error("Error al cargar el despliegue", error);
+      setExpandedTroops([]);
+    } finally {
+      setIsLoadingTroops(false);
+    }
+  };
+
+  // Función auxiliar para buscar nombres de asociaciones
+  const getAssocName = (id: number) => {
+    return adminAssociations.find(a => a.id === id)?.name || `Asoc #${id}`;
+  };
+
   if (isLoading) return <div className="p-12 text-center text-stone-500">Recopilando inteligencia militar...</div>;
 
-  // Componente reutilizable para las tarjetas (Gestalt: Similitud y Continuidad)
   const StatCard = ({ title, value, icon: Icon, description }: any) => (
     <div className="bg-white p-6 rounded-xl shadow-sm border border-stone-200 flex items-start gap-4 hover:shadow-md transition-shadow">
       <div className="p-3 bg-amber-50 rounded-lg text-amber-800">
@@ -128,7 +159,7 @@ export default function DashboardPage() {
   );
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-500">
+    <div className="space-y-8 animate-in fade-in duration-500 pb-10">
       <div>
         <h1 className="text-3xl font-bold text-amber-900 border-b-2 border-amber-800 pb-2 inline-flex items-center gap-3">
           <BarChart3 className="h-8 w-8" />
@@ -141,8 +172,8 @@ export default function DashboardPage() {
         </p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
-        
+      {/* Bloque 1: Widgets 2x2 */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {isAdmin && (
           <>
             <StatCard title="Regimientos Activos" value={stats.totalAssocs} icon={Building} description="Asociaciones adscritas al sistema" />
@@ -169,8 +200,120 @@ export default function DashboardPage() {
             <StatCard title="Estado Actual" value={stats.nextMission} icon={CalendarCheck} description={stats.nextMission === 'Sin asignar' ? 'A la espera de órdenes' : 'Siguiente movilización confirmada'} />
           </>
         )}
-
       </div>
+
+      {/* Bloque 2: Master-Detail Exclusivo para el Admin */}
+      {isAdmin && (
+        <div className="mt-10">
+          <div className="flex items-center gap-2 mb-4">
+            <ShieldAlert className="h-6 w-6 text-amber-800" />
+            <h2 className="text-2xl font-bold text-stone-800">Visor Estratégico de Movilizaciones</h2>
+          </div>
+          <p className="text-stone-500 mb-6">Despliega cualquier campaña para auditar las unidades y asociaciones adscritas.</p>
+
+          <div className="bg-white shadow-md rounded-xl border border-stone-200 overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-stone-200">
+                <thead className="bg-stone-100">
+                  <tr>
+                    <th scope="col" className="px-6 py-4 text-left text-xs font-bold text-stone-600 uppercase tracking-wider">Campaña y Ubicación</th>
+                    <th scope="col" className="px-6 py-4 text-left text-xs font-bold text-stone-600 uppercase tracking-wider">Mando Organizador</th>
+                    <th scope="col" className="px-6 py-4 text-left text-xs font-bold text-stone-600 uppercase tracking-wider">Regimientos Adscritos</th>
+                    <th scope="col" className="px-6 py-4 text-right text-xs font-bold text-stone-600 uppercase tracking-wider">Acción</th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-stone-200">
+                  {adminEvents.length === 0 ? (
+                    <tr>
+                      <td colSpan={4} className="px-6 py-8 text-center text-stone-500">No hay operaciones registradas.</td>
+                    </tr>
+                  ) : (
+                    adminEvents.map((event) => (
+                      <React.Fragment key={event.id}>
+                        {/* FILA MAESTRA (Master) */}
+                        <tr 
+                          className={`transition-colors hover:bg-amber-50 cursor-pointer ${expandedEventId === event.id ? 'bg-amber-50' : ''}`}
+                          onClick={() => toggleEventExpand(event.id!)}
+                        >
+                          <td className="px-6 py-4">
+                            <div className="font-bold text-stone-900">{event.eventCode}</div>
+                            <div className="text-sm text-stone-500 flex items-center gap-1 mt-1">
+                              <MapPin className="h-3 w-3" /> {event.city}, {event.country}
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 text-sm font-medium text-stone-700">
+                            {getAssocName(event.organizingAssociationId!)}
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="flex flex-wrap gap-1">
+                              {(!event.attendingAssociationIds || event.attendingAssociationIds.length === 0) ? (
+                                <span className="text-xs text-stone-400 italic">Ninguna asociación invitada</span>
+                              ) : (
+                                event.attendingAssociationIds.map(id => (
+                                  <span key={id} className="bg-stone-100 border border-stone-200 text-stone-600 text-[10px] uppercase font-bold px-2 py-1 rounded">
+                                    {getAssocName(id)}
+                                  </span>
+                                ))
+                              )}
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 text-right">
+                            <button className="text-amber-800 hover:text-amber-600 flex items-center justify-end w-full gap-1 font-bold text-sm">
+                              {expandedEventId === event.id ? (
+                                <>Ocultar <ChevronUp className="h-5 w-5" /></>
+                              ) : (
+                                <>Ver Despliegue <ChevronDown className="h-5 w-5" /></>
+                              )}
+                            </button>
+                          </td>
+                        </tr>
+
+                        {/* FILA DETALLE (Detail) - Se muestra solo si está expandida */}
+                        {expandedEventId === event.id && (
+                          <tr className="bg-stone-50 border-b-2 border-stone-300">
+                            <td colSpan={4} className="px-6 py-6">
+                              <div className="bg-white rounded-lg border border-amber-200 shadow-inner p-4 animate-in fade-in slide-in-from-top-2">
+                                <h4 className="text-sm font-bold text-amber-900 mb-4 flex items-center gap-2 border-b border-amber-100 pb-2">
+                                  <FileText className="h-4 w-4" /> Desglose de Recreadores Movilizados
+                                </h4>
+                                
+                                {isLoadingTroops ? (
+                                  <div className="text-center text-stone-500 py-4 text-sm">Consultando registros al Cuartel General...</div>
+                                ) : expandedTroops.length === 0 ? (
+                                  <div className="text-center text-stone-400 py-4 text-sm italic">No se han desplegado tropas para esta campaña.</div>
+                                ) : (
+                                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                                    {expandedTroops.map(troop => (
+                                      <div key={troop.id} className="flex items-start gap-3 p-3 bg-stone-50 rounded border border-stone-200 hover:border-amber-300 transition-colors">
+                                        <div className="bg-amber-100 text-amber-800 p-2 rounded-full">
+                                          <Users className="h-4 w-4" />
+                                        </div>
+                                        <div>
+                                          <p className="font-bold text-sm text-stone-900">{troop.memberFullName}</p>
+                                          <div className="text-xs text-stone-600 mt-1 flex items-center gap-1">
+                                            <Crosshair className="h-3 w-3 text-stone-400" />
+                                            {troop.carriedWeapon === 'Ninguna' 
+                                              ? 'Desarmado / Infantería' 
+                                              : `${troop.carriedWeapon} (${troop.weaponModel})`}
+                                          </div>
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </React.Fragment>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
