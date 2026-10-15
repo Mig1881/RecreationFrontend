@@ -1,6 +1,6 @@
-// src/api/apiClient.ts
-
-const BASE_URL = 'http://localhost:8081/api';
+// El sistema busca la URL en el archivo .env correspondiente al entorno. 
+// Si no existe el archivo (por olvido), usa el localhost por defecto como mecanismo de seguridad.
+const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8081/api';
 
 interface RequestOptions extends RequestInit {
   data?: unknown;
