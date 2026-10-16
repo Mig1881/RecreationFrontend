@@ -37,7 +37,6 @@ export default function EventManagePage() {
           participationsService.getByEvent(Number(eventId)).catch(() => [])
         ]);
         
-        // 🔥 VALIDACIÓN DE SEGURIDAD ACTUALIZADA 🔥
         // Puedes pasar si eres Admin, si eres Organizador, O si estás apuntado como Asistente
         const isOrganizer = managedAssociationIds.includes(eventData.organizingAssociationId!);
         const isAttendant = eventData.attendingAssociationIds?.some(id => managedAssociationIds.includes(id));
@@ -48,7 +47,6 @@ export default function EventManagePage() {
           return; 
         }
         
-        // 🔥 ARREGLO LOGÍSTICO ACTUALIZADO 🔥
         // Si es Admin, pide los de la organizadora para ver algo. 
         // Si es Presidente (organizador o asistente), pide los de su propio regimiento.
         const targetAssociationId = isAdmin 

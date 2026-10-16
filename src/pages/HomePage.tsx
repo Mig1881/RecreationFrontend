@@ -10,7 +10,6 @@ export default function HomePage() {
   const { user } = state;
 
   // LÓGICA DE VISUALIZACIÓN: 
-  // Transforma "presidente@ane.es" -> "Presidente"
   const displayName = user?.email 
     ? user.email.split('@')[0].charAt(0).toUpperCase() + user.email.split('@')[0].slice(1)
     : 'Oficial';
@@ -18,7 +17,7 @@ export default function HomePage() {
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
       
-      {/* Hero Banner Inmersivo - Más claro */}
+      {/* Hero Banner */}
       <div className="relative rounded-2xl overflow-hidden shadow-xl border border-stone-300 h-64 md:h-80 w-full group bg-stone-100">
         <img 
           src={jacaHero} 
@@ -32,7 +31,6 @@ export default function HomePage() {
             <span className="inline-block px-3 py-1 bg-amber-800 text-white text-xs font-bold uppercase tracking-wider rounded mb-3 shadow">
               Mando Central
             </span>
-            {/* APLICAMOS EL NOMBRE FORMATEADO AQUÍ */}
             <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold text-white mb-2 drop-shadow-md">
               Bienvenido, {displayName}
             </h1>

@@ -108,7 +108,7 @@ export default function MyDeploymentsPage() {
                   </div>
                 </div>
 
-                {/* 🔥 LA MAGIA OCURRE AQUÍ: Intercambiamos el botón por un bloque visual si ya pasó 🔥 */}
+                {/* Intercambiamos el botón por un bloque visual si ya pasó */}
                 <div className="p-4 border-t border-stone-100 bg-stone-50">
                   {isPast ? (
                     <div className="w-full py-3 bg-stone-200 text-stone-500 font-bold rounded-lg flex items-center justify-center gap-2 border border-stone-300 cursor-not-allowed">

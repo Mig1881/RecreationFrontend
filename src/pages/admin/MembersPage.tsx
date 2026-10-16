@@ -1,8 +1,8 @@
 // src/pages/admin/MembersPage.tsx
 import { useState, useEffect } from 'react';
 import RecruitModal from '../../components/members/RecruitModal';
-import { membersService, type Member } from '../../services/members.service';
-import { membershipsService, type MembershipOutDto } from '../../services/memberships.service';
+import { type Member } from '../../services/members.service';
+import { membershipsService} from '../../services/memberships.service';
 import { useAuth } from '../../context/AuthContext';
 import { apiClient } from '../../api/apiClient';
 import { Search, ChevronLeft, ChevronRight, UserCog, UserMinus, ShieldAlert, UserPlus, RefreshCcw } from 'lucide-react';
@@ -11,6 +11,7 @@ import ProfileModal from '../../components/layout/ProfileModal';
 interface TableMember extends Member {
   membershipId?: number;
   endDate?: string | null;
+  associationName?: string; 
 }
 
 export default function MembersPage() {
@@ -38,6 +39,7 @@ export default function MembersPage() {
   const [selectedMember, setSelectedMember] = useState<Member | null>(null);
   const [isRecruitModalOpen, setIsRecruitModalOpen] = useState(false);
 
+  // 1. Cargar el catálogo de asociaciones para el Admin
   useEffect(() => {
     const fetchAssociations = async () => {
       if (isAdmin) {
@@ -52,39 +54,60 @@ export default function MembersPage() {
     fetchAssociations();
   }, [isAdmin]);
 
+  // 2. Cargar expedientes de forma unificada (Presidente y Admin)
   const fetchMembers = async () => {
     try {
       setIsLoading(true);
       setApiError(null);
 
+      let membershipsData: any[] = [];
+
       if (isAdmin) {
-        const data = await membersService.getAll();
-        setMembers(data);
+        // Precaución: Si aún no se han cargado las asociaciones, esperamos
+        if (adminAssociations.length === 0) return;
+
+        if (selectedAdminAssociation === 'ALL') {
+          // Pedimos los expedientes de TODOS los regimientos y cruzamos el nombre
+          const promises = adminAssociations.map(assoc => 
+            membershipsService.getByAssociation(assoc.id).then(data => 
+              data.map((m: any) => ({ ...m, associationName: assoc.name }))
+            ).catch(() => [])
+          );
+          const results = await Promise.all(promises);
+          membershipsData = results.flat();
+        } else {
+          // Solo los del regimiento seleccionado
+          const assoc = adminAssociations.find(a => a.id.toString() === selectedAdminAssociation);
+          const data = await membershipsService.getByAssociation(Number(selectedAdminAssociation));
+          membershipsData = data.map((m: any) => ({ ...m, associationName: assoc?.name }));
+        }
       } else if (isPresident && managedAssociationIds.length > 0) {
         const myRegimentId = managedAssociationIds[0];
-        const membershipsData = await membershipsService.getByAssociation(myRegimentId);
-        
-        const mappedMembers: TableMember[] = membershipsData.map((m: MembershipOutDto) => {
-          const nameParts = m.memberFullName ? m.memberFullName.split(' ') : ['Desconocido'];
-          const fName = nameParts[0];
-          const lName = nameParts.slice(1).join(' ');
-
-          return {
-            id: m.memberId,
-            membershipId: m.id,
-            nationalId: m.nationalId || '---', 
-            firstName: fName,
-            lastName: lName,
-            email: m.email || 'Sin correo',
-            role: 'member',
-            historicalRank: m.historicalRank || 'Recluta',
-            weaponLicense: m.weaponLicense || '',
-            endDate: m.endDate
-          };
-        });
-
-        setMembers(mappedMembers);
+        membershipsData = await membershipsService.getByAssociation(myRegimentId);
       }
+
+      // Mapeo unificado para la tabla
+      const mappedMembers: TableMember[] = membershipsData.map((m: any) => {
+        const nameParts = m.memberFullName ? m.memberFullName.split(' ') : ['Desconocido'];
+        const fName = nameParts[0];
+        const lName = nameParts.slice(1).join(' ');
+
+        return {
+          id: m.memberId,
+          membershipId: m.id,
+          nationalId: m.nationalId || '---', 
+          firstName: fName,
+          lastName: lName,
+          email: m.email || 'Sin correo',
+          role: 'member',
+          historicalRank: m.historicalRank || 'Recluta',
+          weaponLicense: m.weaponLicense || '',
+          endDate: m.endDate,
+          associationName: m.associationName
+        };
+      });
+
+      setMembers(mappedMembers);
     } catch (error: any) {
       setApiError(error.message || 'Error al obtener el listado de tropas.');
     } finally {
@@ -92,14 +115,20 @@ export default function MembersPage() {
     }
   };
 
+  // 3. Vigilar los cambios para recargar la tabla
   useEffect(() => {
-    fetchMembers();
+    // Solo recargamos si somos Presidente o si somos Admin Y ya tenemos la lista de asociaciones
+    if (isPresident || (isAdmin && adminAssociations.length > 0)) {
+      fetchMembers();
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isAdmin, isPresident]);
+  }, [isAdmin, isPresident, selectedAdminAssociation, adminAssociations]);
 
   const filteredMembers = members.filter(member => {
-    const matchesSearch = `${member.firstName} ${member.lastName}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          member.nationalId.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesSearch = 
+      `${member.firstName} ${member.lastName}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      member.nationalId.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (member.associationName && member.associationName.toLowerCase().includes(searchTerm.toLowerCase()));
     
     const isLicenciado = !!member.endDate;
     
@@ -129,7 +158,6 @@ export default function MembersPage() {
     }
   };
 
-  // 🔥 NUEVA FUNCIÓN: Llamar a filas (Reactivar) 🔥
   const handleReactivar = async (member: TableMember) => {
     if (!member.membershipId) {
       alert("Error: No se ha detectado el ID de adscripción.");
@@ -138,7 +166,6 @@ export default function MembersPage() {
 
     if (window.confirm(`¿Deseas volver a llamar a filas a ${member.firstName} ${member.lastName}? Volverá a estar en servicio activo en tu regimiento.`)) {
       try {
-        // Llamamos al nuevo método del servicio que crearemos en el paso 2
         await membershipsService.reactivar(member.membershipId);
         await fetchMembers();
       } catch (error: any) {
@@ -160,7 +187,6 @@ export default function MembersPage() {
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
       
-      {/* Cabecera, Buscador y Filtros */}
       <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-6">
         <div>
           <div className="flex items-center gap-3 mb-2">
@@ -257,14 +283,15 @@ export default function MembersPage() {
         </div>
       )}
 
-      {/* Contenedor de la Tabla */}
       <div className="bg-white shadow-sm rounded-lg border border-stone-200 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-stone-200">
             <thead className="bg-stone-100">
               <tr>
                 <th scope="col" className="px-6 py-3 text-left text-xs font-bold text-stone-600 uppercase tracking-wider">Identidad</th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-bold text-stone-600 uppercase tracking-wider">DNI/Pasaporte</th>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-bold text-stone-600 uppercase tracking-wider">
+                  {isAdmin ? 'Regimiento / Asociación' : 'DNI/Pasaporte'}
+                </th>
                 <th scope="col" className="px-6 py-3 text-left text-xs font-bold text-stone-600 uppercase tracking-wider">Rango</th>
                 <th scope="col" className="px-6 py-3 text-left text-xs font-bold text-stone-600 uppercase tracking-wider">Licencia Armas</th>
                 <th scope="col" className="px-6 py-3 text-right text-xs font-bold text-stone-600 uppercase tracking-wider">Órdenes</th>
@@ -282,7 +309,7 @@ export default function MembersPage() {
                   const isLicenciado = !!member.endDate;
 
                   return (
-                    <tr key={member.id} className={`${index % 2 === 0 ? 'bg-white' : 'bg-stone-50'} hover:bg-stone-100 transition-colors ${isLicenciado ? 'opacity-60' : ''}`}>
+                    <tr key={member.membershipId || member.id} className={`${index % 2 === 0 ? 'bg-white' : 'bg-stone-50'} hover:bg-stone-100 transition-colors ${isLicenciado ? 'opacity-60' : ''}`}>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex items-center">
                           <div className={`h-10 w-10 flex-shrink-0 rounded-full flex items-center justify-center font-bold ${isLicenciado ? 'bg-stone-200 text-stone-400' : 'bg-stone-200 text-stone-600'}`}>
@@ -298,8 +325,15 @@ export default function MembersPage() {
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-stone-700 font-medium">
-                        {member.nationalId}
+                        {isAdmin ? (
+                          <span className="bg-stone-100 text-stone-600 px-2 py-1 rounded text-xs border border-stone-200 shadow-sm">
+                            {member.associationName || 'Sin asignar'}
+                          </span>
+                        ) : (
+                          member.nationalId
+                        )}
                       </td>
+
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${isLicenciado ? 'bg-stone-100 text-stone-500' : 'bg-amber-100 text-amber-800'}`}>
                           {member.historicalRank || 'Recluta'}
@@ -326,7 +360,6 @@ export default function MembersPage() {
                             <UserCog className="h-5 w-5" />
                           </button>
                           
-                          {/* Botón LICENCIAR (Activos) o REACTIVAR (Reserva) */}
                           {(isPresident && member.membershipId) && (
                             isLicenciado ? (
                               <button 
@@ -363,7 +396,6 @@ export default function MembersPage() {
           </table>
         </div>
 
-        {/* Paginación */}
         {!isLoading && filteredMembers.length > 0 && (
           <div className="bg-stone-50 px-4 py-3 border-t border-stone-200 flex items-center justify-between sm:px-6">
             <div className="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">

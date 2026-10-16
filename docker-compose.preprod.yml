@@ -1,11 +1,12 @@
-version: '3.8'
-
 services:
   mando-central-frontend:
+    image: mig1881/mando-central-frontend-aws:latest
     build:
       context: .
       dockerfile: Dockerfile
     container_name: mando-central-frontend-preprod
+    extra_hosts:
+      - "app:host-gateway"
     ports:
-      - "80:80" # Mapea el puerto 80 de tu PC al 80 del contenedor Nginx
+      - "80:80"
     restart: unless-stopped

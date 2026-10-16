@@ -52,6 +52,8 @@ export default function WeaponsExportPage() {
       try {
         const data = await participationsService.getByEvent(Number(selectedEventId));
         
+        // Como ya sabemos que eres el organizador, te mostramos TODO el armamento
+        // de TODAS las asociaciones que se hayan apuntado a tu evento.
         const armed = data.filter(p => p.carriedWeapon && p.carriedWeapon.trim() !== '' && p.carriedWeapon !== 'Ninguna');
 
         setParticipations(armed);
@@ -73,7 +75,10 @@ export default function WeaponsExportPage() {
       setApiError(null);
       const token = localStorage.getItem('token'); 
       
-      const response = await fetch(`http://localhost:8081/api/events/${selectedEventId}/export-participants`, {
+      // Usa VITE_API_URL en local, o '/api' en AWS (Proxy Nginx)
+      const baseURL = (import.meta as any).env.VITE_API_URL || '/api';
+      
+      const response = await fetch(`${baseURL}/events/${selectedEventId}/export-participants`, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${token}`
@@ -81,7 +86,6 @@ export default function WeaponsExportPage() {
       });
 
       if (!response.ok) {
-        // Capturamos el error 403 que ahora lanza tu backend de Spring Boot
         throw new Error('El Alto Mando denegó la exportación. No tienes autoridad sobre esta campaña.');
       }
 
