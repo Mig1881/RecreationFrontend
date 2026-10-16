@@ -1,5 +1,5 @@
 // src/pages/DashboardPage.tsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { eventsService, type HistoricEvent } from '../services/events.service';
 import { associationsService, type Association } from '../services/associations.service';
@@ -19,7 +19,6 @@ export default function DashboardPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [stats, setStats] = useState<any>({});
 
-  // ESTADOS PARA LA TABLA MASTER-DETAIL (COMPARTIDA ADMIN/PRESIDENT) 
   const [tableEvents, setTableEvents] = useState<HistoricEvent[]>([]);
   const [systemAssociations, setSystemAssociations] = useState<Association[]>([]);
   const [expandedEventId, setExpandedEventId] = useState<number | null>(null);
@@ -28,7 +27,11 @@ export default function DashboardPage() {
 
   const isAdmin = user?.roles.some(role => ['ADMIN', 'ROLE_ADMIN'].includes(role));
   const isPresident = user?.roles.some(role => ['PRESIDENT', 'ROLE_PRESIDENT'].includes(role));
-  const managedAssociationIds = myMemberships.map(m => m.associationId);
+  
+  // Se memoriza el array para que mantenga la misma referencia en memoria entre renderizados
+  const managedAssociationIds = useMemo(() => {
+    return myMemberships.map(m => m.associationId);
+  }, [myMemberships]);
 
   useEffect(() => {
     const fetchStats = async () => {
@@ -70,7 +73,7 @@ export default function DashboardPage() {
             e.attendingAssociationIds?.some(id => managedAssociationIds.includes(id))
           );
 
-          // EVENTOS PARA LA TABLA: Solo los que organiza como anfitrión 
+          // Solo los que organiza como anfitrión 
           const organizedEvents = events.filter(e => 
             managedAssociationIds.includes(e.organizingAssociationId!)
           );
@@ -129,7 +132,8 @@ export default function DashboardPage() {
     };
 
     fetchStats();
-  }, [isAdmin, isPresident, user, managedAssociationIds]);
+  // Utlizo user?.id en lugar del objeto 'user' entero para asegurar también su independencia de referencia  
+  }, [isAdmin, isPresident, user?.id, managedAssociationIds]);
 
   // LÓGICA LAZY LOADING: Cargar tropas solo al expandir un evento
   const toggleEventExpand = async (eventId: number) => {
