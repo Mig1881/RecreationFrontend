@@ -116,7 +116,7 @@ export default function EventsPage() {
           {events.map((event) => {
             const isEnrolled = checkIsEnrolled(event);
 
-            // LÓGICA TEMPORAL PARA BLOQUEAR EVENTOS PASADOS
+            //LÓGICA TEMPORAL PARA BLOQUEAR EVENTOS PASADOS
             let isPast = false;
             if (event.endDate) {
               const endDate = new Date(event.endDate);
@@ -137,7 +137,7 @@ export default function EventsPage() {
                   </div>
                 )}
 
-                {/* Chapita para eventos finalizados donde participaste */}
+                {/* eventos finalizados donde se participó */}
                 {isEnrolled && isPast && (
                   <div className="absolute top-12 right-2 bg-stone-200 text-stone-600 border border-stone-300 text-xs font-bold px-3 py-1 rounded-full flex items-center gap-1 shadow-sm z-10 animate-in zoom-in">
                     <CheckCircle className="h-4 w-4" />

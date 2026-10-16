@@ -28,7 +28,4 @@ export const authService = {
   login: (credentials: LoginDto) => 
     apiClient<JwtResponse>('/auth/login', { method: 'POST', data: credentials }),
 
-  // Endpoint público para registrar recreadores
-  register: (userData: SignupDto) => 
-    apiClient<string>('/auth/register', { method: 'POST', data: userData }),
 };
