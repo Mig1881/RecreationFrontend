@@ -123,7 +123,7 @@ export default function RecruitModal({ isOpen, onClose, onSuccess, associationId
           </button>
         </div>
 
-        {/* PESTAÑAS DE NAVEGACIÓN */}
+        {/* 🔥 PESTAÑAS DE NAVEGACIÓN 🔥 */}
         <div className="flex border-b border-stone-200 bg-stone-50 shrink-0">
           <button 
             onClick={() => { setActiveTab('NEW'); setError(null); }}
@@ -159,23 +159,23 @@ export default function RecruitModal({ isOpen, onClose, onSuccess, associationId
                 <h4 className="text-lg font-bold text-amber-900 mb-4">Datos Personales Obligatorios</h4>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-bold text-stone-700 mb-1">Nombre</label>
-                    <input type="text" name="firstName" required value={formData.firstName} onChange={handleChange}
+                    <label htmlFor="firstName" className="block text-sm font-bold text-stone-700 mb-1">Nombre</label>
+                    <input id="firstName" type="text" name="firstName" required value={formData.firstName} onChange={handleChange}
                       className="w-full px-3 py-2 border border-stone-300 rounded focus:ring-2 focus:ring-green-700 focus:border-green-700 bg-stone-50" />
                   </div>
                   <div>
-                    <label className="block text-sm font-bold text-stone-700 mb-1">Apellidos</label>
-                    <input type="text" name="lastName" required value={formData.lastName} onChange={handleChange}
+                    <label htmlFor="lastName" className="block text-sm font-bold text-stone-700 mb-1">Apellidos</label>
+                    <input id="lastName" type="text" name="lastName" required value={formData.lastName} onChange={handleChange}
                       className="w-full px-3 py-2 border border-stone-300 rounded focus:ring-2 focus:ring-green-700 focus:border-green-700 bg-stone-50" />
                   </div>
                   <div>
-                    <label className="block text-sm font-bold text-stone-700 mb-1">DNI / Pasaporte</label>
-                    <input type="text" name="nationalId" required value={formData.nationalId} onChange={handleChange}
+                    <label htmlFor="nationalId" className="block text-sm font-bold text-stone-700 mb-1">DNI / Pasaporte</label>
+                    <input id="nationalId" type="text" name="nationalId" required value={formData.nationalId} onChange={handleChange}
                       className="w-full px-3 py-2 border border-stone-300 rounded focus:ring-2 focus:ring-green-700 focus:border-green-700 bg-stone-50" />
                   </div>
                   <div>
-                    <label className="block text-sm font-bold text-stone-700 mb-1">Teléfono</label>
-                    <input type="tel" name="phone" value={formData.phone} onChange={handleChange}
+                    <label htmlFor="phone" className="block text-sm font-bold text-stone-700 mb-1">Teléfono</label>
+                    <input id="phone" type="tel" name="phone" value={formData.phone} onChange={handleChange}
                       className="w-full px-3 py-2 border border-stone-300 rounded focus:ring-2 focus:ring-green-700 focus:border-green-700 bg-stone-50" />
                   </div>
                 </div>
@@ -185,13 +185,13 @@ export default function RecruitModal({ isOpen, onClose, onSuccess, associationId
                 <h4 className="text-lg font-bold text-amber-900 mb-4">Credenciales de Acceso</h4>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-bold text-stone-700 mb-1">Correo Electrónico</label>
-                    <input type="email" name="email" required value={formData.email} onChange={handleChange}
+                    <label htmlFor="email" className="block text-sm font-bold text-stone-700 mb-1">Correo Electrónico</label>
+                    <input id="email" type="email" name="email" required value={formData.email} onChange={handleChange}
                       className="w-full px-3 py-2 border border-stone-300 rounded focus:ring-2 focus:ring-green-700 focus:border-green-700 bg-stone-50" />
                   </div>
                   <div>
-                    <label className="block text-sm font-bold text-stone-700 mb-1">Contraseña Provisional</label>
-                    <input type="password" name="password" required value={formData.password} onChange={handleChange} placeholder="Ej: 12345678"
+                    <label htmlFor="password" className="block text-sm font-bold text-stone-700 mb-1">Contraseña Provisional</label>
+                    <input id="password" type="password" name="password" required value={formData.password} onChange={handleChange} placeholder="Ej: 12345678"
                       className="w-full px-3 py-2 border border-stone-300 rounded focus:ring-2 focus:ring-green-700 focus:border-green-700 bg-stone-50" />
                   </div>
                 </div>
